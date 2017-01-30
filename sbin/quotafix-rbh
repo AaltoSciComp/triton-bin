@@ -1,0 +1,131 @@
+#!/usr/bin/env python                                                                                       
+
+"""As root, using rbh-find, fix permissions of directories.
+
+See the user quotafix script for other information.
+
+WARNING: not tested yet.
+
+This script can be run on a top-level project directory.  It assumes
+that the group of that top-level dir is set properly.  With the
+options -s, -w, -r, it will set all permissions as needed.  It uses
+the robinhood database to find files that need to be changed, and only
+executes the chmod commands as needed.
+
+
+BUGS:
+- group names with spaces in them ('domain users'), user names with spaces in them
+- filenames with spaces (should be handled)
+- filenames with embedded newlines (security risk handled, files excluded)
+- non-ascii filenames (check unicode handling)
+
+- Why do we use chown/chmod?  Why not use Python to do that?  (though
+  that is a low level interface, everything has to be statted, updates
+  done, then written back..)
+
+"""
+
+from __future__ import print_function
+
+import argparse
+from collections import namedtuple
+import grp
+import os
+import stat
+import subprocess
+import re
+
+
+class BatchExecute(object):
+    """Wrapper to batch execute, like 'find -exec ... +'
+
+    Usage: chmod = BatchExecute(['chmod', 'g+s'])
+    chmod(path1)
+    chmod(path2)
+    # runs the chmod on all paths when enough have been acquired, or
+    # when object is deleted at program exit.
+    del chmod
+
+    """
+    def __init__(self, cmd):
+        self.cmd = cmd
+        self.paths = [ ]
+    def run(self):
+        subprocess.Popen(self.cmd + self.paths)
+        self.paths = [ ]
+    def __call__(self, path):
+        """Add path to execute list"""
+        self.path.append(path)
+        if len(self.paths) > 100:
+            self.run()
+    def __del__(self):
+        """Always run when object deleted"""
+        if len(self.paths) > 0:
+            self.run()
+chmod_gs = BatchExecute(['echo', 'chmod', 'g+s'])
+chmod_grwX = BatchExecute(['echo', 'chmod', 'g+rwX'])
+chmod_grwxs = BatchExecute(['echo', 'chmod', 'g+rwxs'])
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('path', nargs='+')
+parser.add_argument('-g', action=store_true, help="Fix gid")
+parser.add_argument('-s', action=store_true, help="Fix g+s")
+parser.add_argument('-w', action=store_true, help="Fix g+rw")
+parser.add_argument('--fix', action=store_true, help="Fix problems (otherwise just print)")
+args = parser.parse_args()
+
+#Path = namedtuple('Path', ('path', 'type', 'perms_txt', 'uid', 'gid',))
+#line_re = 
+#def parse_line():
+
+for root_path in arg.path:
+    p = subprocess.Popen(['rbh-find', '-ls']+[path],
+        stdout=subprocess.PIPE)
+
+    gid_shouldbe = str(os.stat(root_path).st_gid)  # easier to compare both with string
+    gname_shouldbe = grp.getgrgid(int(gid_shouldbe)).gr_name
+
+    # Must be unique for each path.
+    chgrp = BatchExecute(['echo', 'chgrp', gid_shouldbe])
+
+    for line in p.stdout:
+        # Example line: 
+        # [0x200008b78:0xdf90:0x0] file rw-rw-r--   1  1972044    310018                3691  2014/03/12 10:35:09 /scratch/cs/networks/glaurent/egoNetEvolv.py
+        line = line.split(9)
+        if len(line) < 10:
+            print("bad line: %r"%line)
+        type_ = line[1]  # 'dir', 'file', ...
+        perms = line[2]
+        gid = args[5]
+        path = line[-1]  ## XXX: spaces and malformed names, special characters, newlines.
+        # The following is for security: if there is not a '/' in the
+        # path, it is possible that it was injected with a newline in
+        # the filename.  This is not fully handled yet: a) filename of
+        # original line is wrong and excluded
+        if '/' not in path:
+            print("filename without '/' in it: %r"%path)
+
+        # Make group dirs sticky
+        if args.s and type_ == 'dir' and not (perms[5]=='s' or perms[5]=='S'):
+            if args.fix:
+                chmod_gs(path)
+            else:
+                print("(not sticky)   %-50r %s"%(path, perms))
+        # Make dirs owned by the proper group.
+        if args.g and not (gid == gid_shouldbe or gid == gname_shouldbe):
+            if args.fix:
+                chgrp(path)
+            else:
+                print("(wrong group)  %-50r %s"%(path, gid))
+        # Set permissions to writeable.  Slight overlap with making them sticky above.
+        if args.w and type_ == 'dir' and not (perms[3]=='r' and perms[4]=='w' and perms[5]=='s'):
+            if args.fix:
+                chmod_grwxs(path)
+            else:
+                print("(not g+rwxs)   %-50r %s"%(path, perms))
+        elif args.w                  and not (perms[3]=='r' and perms[4]=='w'):
+            if args.fix:
+                chmod_grwX(path)
+            else:
+                print("(not g+rw)     %-50r %s"%(path, perms))

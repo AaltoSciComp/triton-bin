@@ -1,0 +1,266 @@
+#!/usr/bin/env python
+
+# Copyright Richard Darst 2017.  GPLv2+
+
+"""Fix user group directory permissions.
+
+This program has several primary use cases:
+
+- Users who get "quota exceeded" because of group sticky bit not being
+  set.
+
+- Group shared directories with files who are not owned by the proper
+  group.
+
+- Group shared directories with files which are not group
+  read/writeable.
+
+This is a user script that generates one giant "find" command to fix
+these problems efficiently, with only one scan over all files.  By
+defalut, it does nothing but print out the problems, and if you run
+with --fix it will fix them.  By default, it only fixes the sticky
+problem, but you can use the -s, -g, and -w options respectively to
+fix the other problems.  -a will fix all problems.
+
+The intended group name is inferred from the filesystem paths, one
+does not have to run only at the root of the.
+
+
+User documentation
+==================
+
+If you get a "quota exceeded" error and your quota is *not* actually
+exceeded, then run this script on the directory.  It will fix the most
+common problem.
+  quotafix --fix path/to/files/
+
+If you have a shared directory and want to make it so that others can
+read/write the files, run with:
+  quotafix -a --fix path/to/dir/
+
+
+
+"""
+
+from __future__ import print_function
+
+import argparse
+import os
+import stat
+import subprocess
+
+VERBOSE = 0
+UID = os.getuid()
+IS_ROOT = (UID == 0)
+
+#find "$BASE" \
+#    ! -perm -0060 -perm /0600      \
+#    \( -user "$USER"  -o  -printf "XX %u=%p\n" -false  \)  \
+#    -print  \
+#    \( -type d -exec chmod g+rwXs {} \;  -o   -exec chmod g+rwX {} \; \)
+
+# For reference:
+
+# Make directories sticky:
+# find /scratch/netsys/darko/drvo/datasets/ \
+#     -type d ! -perm /2000 -print -exec chmod g+s {} \;
+
+# Make files non-sticky:
+# find /scratch/netsys/darko/drvo/datasets/ \
+#     -type f -perm /2000 -print -exec chmod g-s {} \;
+
+def iter_print0(f):
+    """Iterate over lines output by find -print0.  Have to split by \0"""
+    previous = ''
+    while True:
+        data = f.read(4096)
+        if len(data) == 0:
+            break
+        data = previous + data
+        items = data.split('\0')
+        previous = items.pop()
+        for item in items:
+            yield item
+    if previous:
+        yield previous
+
+if IS_ROOT:
+    HAS_PERM_OR_ERROR = [ ]
+else:
+    HAS_PERM_OR_ERROR = ['(', '-uid', str(UID), '-o', '-printf', r"(can't fix, owner=%u)  %p\n", '-false', ')']
+
+
+STICKY_PROBLEM = ["-type", "d", #"-perm", "/g+w",
+                  "!", "-perm", "/g+s"]
+STICKY_PROBLEM_FIX = [
+                "-printf", r"(fixed) not sticky:    %-50p (%M)\n",
+                '-exec', 'chmod', 'g+s', '{}', '+']
+STICKY_PROBLEM_PRINT = ["-printf", r"not sticky:    %-50p (%M)\n"]
+GROUPPERM_PROBLEM = ["!", "-perm", "-g+rwx"]
+GROUPPERM_PROBLEM_FIX = [
+                "-printf", r"(fixed) not g+rw:       %-50p (%M)\n",
+                '(',      '-type', 'd', '-exec', 'chmod', 'g+rwx', '{}', '+', ')', ',',
+                '(', '!', '-type', 'd', '-exec', 'chmod', 'g+rw',  '{}', '+', ')',
+    ]
+GROUPPERM_STICKY_PROBLEM_FIX = [
+                "-printf", r"(fixed) not g+w:       %-50p (%M)\n",
+                '(',      '-type', 'd', '-exec', 'chmod', 'g+rwxs','{}', '+', ')', ',',
+                '(', '!', '-type', 'd', '-exec', 'chmod', 'g+rw',  '{}', '+', ')',
+                ]
+GROUPPERM_PROBLEM_PRINT = ["-printf", r"not g+rw:       %-50p (%M)\n"]
+
+# NO TRAILING SLASHES!
+ROOTS = {'/m/cs/scratch',
+             '/m/cs/project',
+             '/m/nbe/scratch',
+             '/m/nbe/project',
+             '/scratch/work',
+             }
+def infer_group(path):
+    path = os.path.normpath(os.path.abspath(path))
+    while path and path != '/':
+        path, dirname = os.path.split(path)
+        if path in ROOTS:
+            gid = os.stat(os.path.join(path, dirname)).st_gid
+            return gid
+    return None
+
+
+
+def user_script(args):
+    """User-runable script using find.
+
+    Currently fixes two possible problems in one command:
+    - sticky bit not set on directories
+    - group not set properly.
+    """
+
+    for path in args.path:
+        cmd = ['find', '-P'] + args.path
+
+        # Fix the group id
+        if args.g:
+            cmd.append("(")
+            # Infer the right group for this path
+            if args.group:
+                group = args.group
+            else:
+                group = infer_group(path)
+            if group is None:
+                print("Can not identify group of %s: not changing group"%path)
+            else:
+                if VERBOSE:
+                    print("Changing to group=%s"%group)
+                # These are defined here since it depends on the group.
+                GROUP_PROBLEM = ["!", "-group", str(group)]
+                GROUP_PROBLEM_FIX = [
+                        "-printf", r"(fixed) wrong group:   %-50p (%g)\n",
+                        '-exec', 'chgrp', str(group), '{}', '+']
+                GROUP_PROBLEM_PRINT = ["-printf", r"wrong group:   %-50p (%g)\n"]
+                # Detect problem
+                cmd += GROUP_PROBLEM
+                # Print problems or fix them.
+                if args.fix:
+                    cmd += HAS_PERM_OR_ERROR + GROUP_PROBLEM_FIX
+                else:
+                    cmd += GROUP_PROBLEM_PRINT
+                cmd.extend([')', ','])
+
+        # Sticky bit problem:
+        if args.s:
+            cmd.append("(")
+            # Detect problem
+            cmd += STICKY_PROBLEM
+            # Fix or print
+            if args.fix:
+                cmd += HAS_PERM_OR_ERROR + STICKY_PROBLEM_FIX
+            else:
+                cmd += STICKY_PROBLEM_PRINT
+            cmd.extend([')', ','])
+
+        # Group writeability problem:
+        if args.w:
+            cmd.append("(")
+            # Detect problem
+            cmd += GROUPPERM_PROBLEM
+            # Fix or print
+            if args.fix and args.s:
+                cmd += HAS_PERM_OR_ERROR + GROUPPERM_STICKY_PROBLEM_FIX
+            elif args.fix:
+                cmd += HAS_PERM_OR_ERROR + GROUPPERM_PROBLEM_FIX
+            else:
+                cmd += GROUPPERM_PROBLEM_PRINT
+            cmd.extend([')', ','])
+
+        cmd.extend(['-true'])
+
+        if VERBOSE:
+            print(cmd)
+        # Do run and print output. We have to take special measures to
+        # handle null-separated output.
+        p = subprocess.Popen(cmd)#, stdout=subprocess.PIPE)
+        p.wait()
+        #for line in iter_print0(p.stdout):
+        #    print line
+        #print p.stdout.read()
+        #print p.stderr.read()
+
+
+DESCRIPTION = """\
+
+This program is used for fixing common permission problems on Triton
+filesystems.  It fixes these problems:
+
+- Directories are not sticky (chmod g+s).  This will result in attempts
+  to make file in this directory produce "quota exceeded" in a very
+  confusing fashion.  (fix: all directories become g+s)
+
+- Files have the wrong group: Can happen when files are copied from
+  another location. (fix: all files changed to proper group.)
+
+- Files do not have all group permissions.  (fix: all files become
+  g+rw, any files/directories with any +x become g+rwxs, directories
+  become g+rwxs)
+
+Examples:
+
+  quotafix --fix /scratch/cs/mygroup/dir/
+    Fix the sticy problem, the most common reason for "quota exceeded".
+
+  quotafix -a --fix /scratch/cs/mygroup/dir/
+    Fix the sticy problem, the most common problem.  Only for shared
+    directories!
+
+"""
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
+    #subparsers = parser.add_subparsers()
+
+    parser.add_argument("-a", action="store_true",
+                        help="Fix all problems (-gsw)")
+    parser.add_argument("-g", action="store_true",
+                        help="Fix group of files (to value of --group)")
+    parser.add_argument("-s", action="store_true",
+                        help="Fix sicky bit of directories")
+    parser.add_argument("-w", action="store_true",
+                        help="Fix group-writeability of files")
+    parser.add_argument("--fix", action='store_true',
+                        help="Fix found problems (default: print ontly, no action)",)
+    parser.add_argument("--group", help="Set group id to this value, if not given "
+                            "try to infer it from the location of files.")
+    parser.add_argument("--verbose", "-v", action='store_true', help="Show commands")
+    parser.add_argument("path", nargs='+', help="Paths to check")
+
+    args = parser.parse_args()
+    if args.verbose: VERBOSE = True
+    # If nothing specified: turn on -s
+    if not any((args.a, args.g, args.s, args.w)):
+        args.s = True
+    # If -a is specified, turn everything on.
+    if args.a:
+        args.g = args.s = args.w = True
+
+    user_script(args)
+
