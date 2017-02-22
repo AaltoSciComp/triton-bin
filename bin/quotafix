@@ -84,36 +84,49 @@ def iter_print0(f):
     if previous:
         yield previous
 
+# This prints an error if the user running the program doesn't have
+# rights to change the mode of the file.  It tells the user who to
+# ask.
 if IS_ROOT:
     HAS_PERM_OR_ERROR = [ ]
 else:
     HAS_PERM_OR_ERROR = ['(', '-uid', str(UID), '-o', '-printf', r"(can't fix, owner=%u)  %p\n", '-false', ')']
 
-
+# These make directories sticky.
 STICKY_PROBLEM = ["-type", "d", #"-perm", "/g+w",
                   "!", "-perm", "/g+s"]
 STICKY_PROBLEM_FIX = [
-                "-printf", r"(fixed) not sticky:    %-50p (%M)\n",
+                "-printf", r"(fixed) not sticky:    %-42p (%M)\n",
                 '-exec', 'chmod', 'g+s', '{}', '+']
 STICKY_PROBLEM_PRINT = ["-printf", r"not sticky:    %-50p (%M)\n"]
-GROUPPERM_PROBLEM = ["!", "-perm", "-g+rwx"]
+
+# These force directories to g+rwx and files to g+rwX (exec if user
+# is exec).  A special case combines with the sticky problem above.
+GROUPPERM_PROBLEM = "! ( -type d -perm -g+rwx -o -perm -g+rwx -o ! -perm /u+x -perm -g+rw )".split()
 GROUPPERM_PROBLEM_FIX = [
-                "-printf", r"(fixed) not g+rw:       %-50p (%M)\n",
+                "-printf", r"(fixed) not g+rwX:     %-42p (%M)\n",
                 '(',      '-type', 'd', '-exec', 'chmod', 'g+rwx', '{}', '+', ')', ',',
-                '(', '!', '-type', 'd', '-exec', 'chmod', 'g+rw',  '{}', '+', ')',
+                '(', '!', '-type', 'd', '-exec', 'chmod', 'g+rwX',  '{}', '+', ')',
     ]
 GROUPPERM_STICKY_PROBLEM_FIX = [
-                "-printf", r"(fixed) not g+w:       %-50p (%M)\n",
+                "-printf", r"(fixed) not g+rwX:     %-42p (%M)\n",
                 '(',      '-type', 'd', '-exec', 'chmod', 'g+rwxs','{}', '+', ')', ',',
-                '(', '!', '-type', 'd', '-exec', 'chmod', 'g+rw',  '{}', '+', ')',
+                '(', '!', '-type', 'd', '-exec', 'chmod', 'g+rwX',  '{}', '+', ')',
                 ]
 GROUPPERM_PROBLEM_PRINT = ["-printf", r"not g+rw:       %-50p (%M)\n"]
 
-# NO TRAILING SLASHES!
+# NO TRAILING SLASHES!  Explicitely opt-in each root directory to
+# ensure there are no problems.
 ROOTS = {'/m/cs/scratch',
              '/m/cs/project',
+             '/m/cs/archive',
              '/m/nbe/scratch',
              '/m/nbe/project',
+             '/m/nbe/archive',
+             '/scratch/cs',
+             '/scratch/nbe',
+             '/scratch/elec',
+             '/scratch/phys'
              '/scratch/work',
              }
 def infer_group(path):
@@ -121,7 +134,13 @@ def infer_group(path):
     while path and path != '/':
         path, dirname = os.path.split(path)
         if path in ROOTS:
-            gid = os.stat(os.path.join(path, dirname)).st_gid
+            st = os.stat(os.path.join(path, dirname))
+            # refuse to operate on root-owned dirs.  Maybe this is
+            # excessively strict and not needed...
+            if st.st_uid == 0:
+                print("Error: root directory %s is owned by root, aborting.  Please fix this."%path)
+                exit(1)
+            gid = st.st_gid
             return gid
     return None
 
@@ -154,7 +173,7 @@ def user_script(args):
                 # These are defined here since it depends on the group.
                 GROUP_PROBLEM = ["!", "-group", str(group)]
                 GROUP_PROBLEM_FIX = [
-                        "-printf", r"(fixed) wrong group:   %-50p (%g)\n",
+                        "-printf", r"(fixed) wrong group:   %-42p (%g)\n",
                         '-exec', 'chgrp', str(group), '{}', '+']
                 GROUP_PROBLEM_PRINT = ["-printf", r"wrong group:   %-50p (%g)\n"]
                 # Detect problem
