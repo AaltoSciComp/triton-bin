@@ -29,7 +29,7 @@ import time
 # need to be passed to the internal jupyter command have to be
 # captured here and then re-added to the command at the bottom
 # (example: --cluster)
-parser_outer = argparse.ArgumentParser()
+parser_outer = argparse.ArgumentParser(usage=__file__+" [args] [srun-args] [-- [jupyter-args]]")
 parser_outer.add_argument("--internal", action='store_true',
                           help="Do not use (runs in batch)")
 parser_outer.add_argument("--cluster", action='store_true',
@@ -89,6 +89,7 @@ if args.internal:
     cmd = ["srun", "jupyter", "notebook", "--no-browser",
                "--port=%d"%JPORT,
                "--ip=%s"%hostname]
+    cmd += remaining
     if args.verbose: print(cmd)
     os.execvp(cmd[0], cmd)
 
@@ -128,14 +129,24 @@ print("""\
 
 # Start srun with remaining command line parameters, execute same
 # script with --internal parameter.
-cmd_srun = ['srun', '--pty', ] + remaining
+cmd_srun = ['srun', '--pty', ]
 cmd_srun.append('--partition='+args.partition)
 
 cmd_jupyter = [os.path.abspath(__file__), '--internal']
+
 if args.cluster:
     cmd_jupyter.append('--cluster')
 if args.verbose:
     cmd_jupyter.append('--verbose')
+
+if '--' in remaining:
+    split_idx = remaining.index('--')
+    cmd_srun += remaining[:split_idx]
+    cmd_jupyter += remaining[split_idx+1:]
+else:
+    cmd_srun += remaining
+
+
 
 # XDG_RUNTIME_DIR isn't valid on run host
 del os.environ['XDG_RUNTIME_DIR']
