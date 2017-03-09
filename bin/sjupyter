@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -x
+
+PORT=$(( (UID % 60000) + 5500))
+grep -E 'c.NotebookApp.password.*=.*.{10,}' ~/.jupyter/jupyter_notebook_config.py
+
+unset XDG_RUNTIME_DIR
+
+srun --pty $* sh << EOF
+set -x
+HOSTNAME=\`hostname -f\`
+
+srun ipcluster start --n=\$SLURM_CPUS_ON_NODE &
+echo "Waiting 10 seconds for cluster to start..."
+sleep 20
+
+exec srun jupyter notebook --port=$PORT --ip=\$HOSTNAME --no-browser
+EOF
+
+#srun --pty $* jupyter notebook --port=$PORT --ip='*' --debug --no-browser
