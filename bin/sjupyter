@@ -27,6 +27,9 @@ import subprocess
 import time
 
 DEFAULT_MODULE = "anaconda3"
+# Pick random port for jupyter.  It's OK if we have collisions,
+# jupyter tries many ports starting at this one.
+JPORT = (os.getuid() % 63300) + 2048
 
 
 # These arguments are used and consumed by the outer script.  Anything
@@ -37,6 +40,8 @@ DEFAULT_MODULE = "anaconda3"
 parser_outer = argparse.ArgumentParser(usage=__file__+" [args] [srun-args] [-- [jupyter-args]]")
 parser_outer.add_argument("--internal", action='store_true',
                           help="Do not use (runs in batch)")
+parser_outer.add_argument("--local", action='store_true',
+                          help="Don't run in slurm, just run here.")
 parser_outer.add_argument("--cluster", action='store_true',
                           help="Start ipython cluster, considers slurm -c option. (not implemented)")
 parser_outer.add_argument("--jupyter-arg",
@@ -60,9 +65,6 @@ if args.verbose: print(args_inner, remaining2)
 #
 # Basic setup
 #
-# Pick random port for jupyter.  It's OK if we have collisions,
-# jupyter tries many ports starting at this one.
-JPORT = (os.getuid() % 60000) + 5500
 # Does jupyter exist on the path?
 ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'))
 if ret != 0:
@@ -82,7 +84,7 @@ if ret != 0:
 #
 # Internal script: start jupyter inside of a slurm task
 #
-if args.internal:
+if args.internal or args.local:
     hostname = socket.getfqdn()
 
     if args.cluster:
@@ -92,16 +94,50 @@ if args.internal:
         print("Waiting 20 seconds for cluster to start...")
         time.sleep(20)
 
+    # Find free port.
+    for port in range(JPORT, JPORT+100):
+        if args.verbose: print("Trying port %d"%port)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.bind((hostname, port))
+        except (OSError, socket.error):
+            sock.close()
+            continue
+        # available
+        sock.close()
+        if args.verbose: print("Found port %d"%port)
+        break
+    else:
+        print("ERROR: could not find free port.")
+        exit(1)
+
+
     print("""\
 ********************
-* Starting jupyter.  To cancel, C-c C-c twice within one second
-* (to kill srun).
-********************""")
+* Starting jupyter.  To cancel, C-c C-c twice within one second (to kill
+* srun).
+*
+* You now need to connect to the jupyter  The direct way: ssh to triton with
+*   ssh -L %(port)d:%(hostname)s:%(port)d user@triton.aalto.fi
+* and use the URL below, but change %(hostname)s to localhost
+*
+* Or, use SSH proxy:
+*   'ssh -D 8123:localhost user@triton.aalto.fi'
+* Create a new broweser instance
+* Change the proxy of that browser to localhost:8123, SOCKS5
+* Connect to jupyter using the exact URL that is printed below.
+*
+* If you can not connect directly to triton.aalto.fi (you are not in Aalto
+* networks), add this to ssh command:
+*  -o ProxyCommand='ssh-nomux user@kosh.aalto.fi -W %%h:%%p'
+********************"""%dict(port=port, hostname=hostname))
 
     os.environ.pop('XDG_RUNTIME_DIR', None)
     cmd = ["srun", "jupyter", "notebook", "--no-browser",
-               "--port=%d"%JPORT,
+               "--port=%d"%port,
                "--ip=%s"%hostname]
+    if args.local:
+        cmd.pop(0)
     cmd += remaining
     if args.verbose: print(cmd)
     os.execvp(cmd[0], cmd)
@@ -126,19 +162,6 @@ if args.list or (remaining and remaining[0] == 'list'):
 #
 
 #grep -E 'c.NotebookApp.password.*=.*.{10,}' ~/.jupyter/jupyter_notebook_config.py
-print("""\
-********************
-* ssh to triton with
-*   'ssh -D 8123:localhost username@triton.aalto.fi'
-*
-* Create a new broweser instance
-* Change the proxy of that browser to localhost:8123, SOCKS5
-* Connect to jupyter using the URL that is printed.
-*
-* OR:
-*   ssh -L NNNN:hostname-of-server:NNNN triton.aalto.fi
-*   and connect to localhost:NNNN
-********************""")
 
 # Start srun with remaining command line parameters, execute same
 # script with --internal parameter.
