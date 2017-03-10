@@ -6,6 +6,8 @@ Run sjupyter to start a notebook on remote server.  There are various
 options that control jupyter, for example pass --cluster in order to
 start an ipython cluster which uses the slurm CPUs.
 
+- Expects a "jupyter" executable to be on PATH, if not, then
+  automatically load DEFAULT_MODULE (=anaconda3)
 
 
 Notes:
@@ -23,6 +25,9 @@ import os
 import socket
 import subprocess
 import time
+
+DEFAULT_MODULE = "anaconda3"
+
 
 # These arguments are used and consumed by the outer script.  Anything
 # that is not listed here is passed to the srun command.  Things which
@@ -61,8 +66,16 @@ JPORT = (os.getuid() % 60000) + 5500
 # Does jupyter exist on the path?
 ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'))
 if ret != 0:
-    print("ERROR: jupyter is not in PATH")
-    exit(1)
+    print("INFO: jupyter is not in PATH, loading default jupyter from anaconda3")
+    # Load module using native Python support.
+    modinit = '/usr/share/Modules/init/python.py'
+    exec(compile(open(modinit).read(), modinit, 'exec'))
+    module('load', DEFAULT_MODULE)
+    # Check again.  Is it really loaded?
+    ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'))
+    if ret != 0:
+        print("ERROR: could not load a working jupyter")
+        exit(1)
 
 
 
