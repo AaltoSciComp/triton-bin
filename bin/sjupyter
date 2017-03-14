@@ -27,6 +27,7 @@ import subprocess
 import time
 
 DEFAULT_MODULE = "anaconda3"
+MODULE_INIT = "/usr/share/lmod/6.5.1/init/env_modules_python.py"
 # Pick random port for jupyter.  It's OK if we have collisions,
 # jupyter tries many ports starting at this one.
 JPORT = (os.getuid() % 63300) + 2048
@@ -70,8 +71,7 @@ ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'))
 if ret != 0:
     print("INFO: jupyter is not in PATH, loading default jupyter from anaconda3")
     # Load module using native Python support.
-    modinit = '/usr/share/Modules/init/python.py'
-    exec(compile(open(modinit).read(), modinit, 'exec'))
+    exec(compile(open(MODULE_INIT).read(), MODULE_INIT, 'exec'))
     module('load', DEFAULT_MODULE)
     # Check again.  Is it really loaded?
     ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'))
