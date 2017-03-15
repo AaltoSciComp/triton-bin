@@ -121,15 +121,20 @@ if args.internal or args.local:
 *   ssh -L %(port)d:%(hostname)s:%(port)d user@triton.aalto.fi
 * and use the URL below, but change %(hostname)s to localhost
 *
-* Or, use SSH proxy:
-*   'ssh -D 8123:localhost user@triton.aalto.fi'
-* Create a new broweser instance
-* Change the proxy of that browser to localhost:8123, SOCKS5
+* Even better, use SSH proxy:
+*   'ssh -D 8135 user@triton.aalto.fi'
+* For Firefox, install the extension FoxyProxy Standard,
+* Set up a new proxy rule for the pattern *int.triton.aalto.fi*, using
+*   localhost:8123 type SOCKS5,
+* Now any Triton jupyter URLs automatically go to your notebook!
+* OR:
+* Create a new browser instance,
+* Change the proxy of that browser to localhost:8123, SOCKS5,
 * Connect to jupyter using the exact URL that is printed below.
 *
 * If you can not connect directly to triton.aalto.fi (you are not in Aalto
 * networks), add this to ssh command:
-*  -o ProxyCommand='ssh-nomux user@kosh.aalto.fi -W %%h:%%p'
+*  -o ProxyCommand='ssh user@kosh.aalto.fi -W %%h:%%p'
 ********************"""%dict(port=port, hostname=hostname))
 
     os.environ.pop('XDG_RUNTIME_DIR', None)
