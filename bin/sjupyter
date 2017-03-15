@@ -50,7 +50,9 @@ parser_outer.add_argument("--jupyter-arg",
 parser_outer.add_argument("-p", "--partition", default="interactive",
                           help="slurm partition to use, default=interactive")
 parser_outer.add_argument("-l", "--list", action="store_true",
-                          help="List currently running notebooks.")
+                          help="List currently running notebooks.  The jupyter"
+                          " equivalent doesn't work and may wipe running"
+                          " notebooks!")
 parser_outer.add_argument("-v", "--verbose", action="store_true",
                           help="Verbose.")
 
@@ -155,10 +157,21 @@ if args.internal or args.local:
 # pbeing used to store the running server list.
 #
 if args.list or (remaining and remaining[0] == 'list'):
-    del os.environ['XDG_RUNTIME_DIR']
-    #os.execvpe('jupyter', ['jupyter', 'notebook', 'list'], env=os.environ)
-    subprocess.call(['jupyter', 'notebook', 'list'])
-    exit(1)
+    # The following does NOT work because it wipes the dierctory:
+    #del os.environ['XDG_RUNTIME_DIR']
+    ##os.execvpe('jupyter', ['jupyter', 'notebook', 'list'], env=os.environ)
+    #subprocess.call(['jupyter', 'notebook', 'list'])
+
+    # We have to re-implement this because "jupyter notebook list"
+    # will wipe things on other machines.
+    import glob
+    import json
+    files = glob.glob(os.path.expanduser('~/.local/share/jupyter/runtime/nbserver-*.json'))
+    print("Currently running servers:")
+    for fname in files:
+        nbdata = json.load(open(fname))
+        print("%(url)s?token=%(token)s :: %(notebook_dir)s"%nbdata)
+    exit(0)
 
 
 
