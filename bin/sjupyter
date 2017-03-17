@@ -124,7 +124,7 @@ if args.internal or args.local:
 * and use the URL below, but change %(hostname)s to localhost
 *
 * Even better, use SSH proxy:
-*   'ssh -D 8135 user@triton.aalto.fi'
+*   'ssh -D 8123 user@triton.aalto.fi'
 * For Firefox, install the extension FoxyProxy Standard,
 * Set up a new proxy rule for the pattern *int.triton.aalto.fi*, using
 *   localhost:8123 type SOCKS5,
