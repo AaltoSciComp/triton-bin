@@ -69,14 +69,14 @@ if args.verbose: print(args_inner, remaining2)
 # Basic setup
 #
 # Does jupyter exist on the path?
-ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'))
+ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'), stderr=subprocess.STDOUT)
 if ret != 0:
     print("INFO: jupyter is not in PATH, loading default jupyter from anaconda3")
     # Load module using native Python support.
     exec(compile(open(MODULE_INIT).read(), MODULE_INIT, 'exec'))
     module('load', DEFAULT_MODULE)
     # Check again.  Is it really loaded?
-    ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'))
+    ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'), stderr=subprocess.STDOUT)
     if ret != 0:
         print("ERROR: could not load a working jupyter")
         exit(1)
