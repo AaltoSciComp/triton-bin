@@ -126,7 +126,7 @@ ROOTS = {'/m/cs/scratch',
              '/scratch/cs',
              '/scratch/nbe',
              '/scratch/elec',
-             '/scratch/phys'
+             '/scratch/phys',
              '/scratch/work',
              }
 def infer_group(path):
@@ -159,7 +159,6 @@ def user_script(args):
 
         # Fix the group id
         if args.g:
-            cmd.append("(")
             # Infer the right group for this path
             if args.group:
                 group = args.group
@@ -168,6 +167,7 @@ def user_script(args):
             if group is None:
                 print("Can not identify group of %s: not changing group"%path)
             else:
+                cmd.append("(")
                 if VERBOSE:
                     print("Changing to group=%s"%group)
                 # These are defined here since it depends on the group.
