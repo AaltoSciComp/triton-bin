@@ -181,6 +181,8 @@ def user_script(args):
                     print("Changing to group=%s"%group)
                 # These are defined here since it depends on the group.
                 GROUP_PROBLEM = ["!", "-group", str(group)]
+                if args.from_group:
+                    GROUP_PROBLEM = ['('] + GROUP_PROBLEM + ['-group', str(args.from_group), ')']
                 GROUP_PROBLEM_FIX = [
                         "-printf", r"(fixed) wrong group:   %-42p (%g)\n",
                         '-exec', 'chgrp', '--no-dereference', str(group), '{}', '+']
@@ -278,6 +280,7 @@ if __name__ == "__main__":
                         help="Fix found problems (default: print ontly, no action)",)
     parser.add_argument("--group", help="Set group id to this value, if not given "
                             "try to infer it from the location of files.")
+    parser.add_argument("--from-group", help="Change only this group to the new group (internal).")
     parser.add_argument("--verbose", "-v", action='store_true', help="Show commands")
     parser.add_argument("path", nargs='+', help="Paths to check")
 
