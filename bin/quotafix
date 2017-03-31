@@ -45,6 +45,7 @@ read/write the files, run with:
 from __future__ import print_function
 
 import argparse
+import grp
 import os
 import stat
 import subprocess
@@ -142,10 +143,13 @@ def infer_group(path):
             st = os.stat(os.path.join(path, dirname))
             # refuse to operate on root-owned dirs.  Maybe this is
             # excessively strict and not needed...
-            if st.st_uid == 0:
+            gid = st.st_gid
+            if gid == 0:
                 print("Error: root directory %s is owned by root, aborting.  Please fix this."%path)
                 exit(1)
-            gid = st.st_gid
+            gname = grp.getgrgid(gid).gr_name
+            if gname in {"triton-users", "domain users"}:
+                print("Error: group '%s' of %s is invalid.  Please fix this."%(gname, path))
             return gid
     return None
 
