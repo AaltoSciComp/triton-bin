@@ -102,7 +102,12 @@ STICKY_PROBLEM_PRINT = ["-printf", r"not sticky:    %-50p (%M)\n"]
 
 # These force directories to g+rwx and files to g+rwX (exec if user
 # is exec).  A special case combines with the sticky problem above.
-GROUPPERM_PROBLEM = "! ( -type d -perm -g+rwx -o -perm -g+rwx -o ! -perm /u+x -perm -g+rw )".split()
+# - ignore all symbolic links
+# - ignore dirs that are g+rwx
+# - ignore files that are g+rwx already
+# - igrore files that are g+rw if it is not u+x
+# - otherwise, make the file g+rwX or g+rwXs
+GROUPPERM_PROBLEM = "! ( -type l -o -type d -perm -g+rwx -o -perm -g+rwx -o ! -perm /u+x -perm -g+rw )".split()
 GROUPPERM_PROBLEM_FIX = [
                 "-printf", r"(fixed) not g+rwX:     %-42p (%M)\n",
                 '(',      '-type', 'd', '-exec', 'chmod', 'g+rwx', '{}', '+', ')', ',',
@@ -174,7 +179,7 @@ def user_script(args):
                 GROUP_PROBLEM = ["!", "-group", str(group)]
                 GROUP_PROBLEM_FIX = [
                         "-printf", r"(fixed) wrong group:   %-42p (%g)\n",
-                        '-exec', 'chgrp', str(group), '{}', '+']
+                        '-exec', 'chgrp', '--no-dereference', str(group), '{}', '+']
                 GROUP_PROBLEM_PRINT = ["-printf", r"wrong group:   %-50p (%g)\n"]
                 # Detect problem
                 cmd += GROUP_PROBLEM
