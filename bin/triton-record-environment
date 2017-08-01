@@ -35,7 +35,7 @@ while [[ $# -gt 0 ]]; do
 done
 OUTPUT=" >> $OUTPUTFILE"
 
-if [[ ! -z "$APPEND" ]] ; then
+if [[ -z "$APPEND" ]] ; then
     rm "$OUTFILE"
 fi
 
@@ -57,7 +57,11 @@ module list
 
 echo
 echo '===== ENVIRONMENT ====='
-env | egrep -i '^[^=]*path|lmod|modules|wrkdir' | sort
+env | egrep -i '^[^=]*(path|lmod|modules|wrkdir)[^=]*=' | sort
+
+echo
+echo '===== SLURM ====='
+env | egrep -i '^[^=]*(slurm)[^=]*=' | sort
 
 if [ ! -z "$PYTHON" ] ; then
     echo
@@ -70,8 +74,10 @@ if [ ! -z "$PYTHON" ] ; then
     which ipython3
     which pip
     which conda
-    env | egrep -i 'python|venv|conda' | sort
+    echo
+    env | egrep -i '^[^=]*(python|conda|venv|virtual)[^=]*=' | sort
     echo "sys.path:"
+    echo
     python -c 'import sys, pprint ; pprint.pprint(sys.path)'
 fi
 
@@ -83,6 +89,7 @@ if [[ $# -gt 0 ]] ; then
     echo
     echo '===== RUNNING COMMAND ====='
     echo "===== $@ ====="
+    echo
 
     # Restore file descriptors
     exec 1>&13 13>&-
