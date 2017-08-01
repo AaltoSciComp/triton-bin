@@ -1,0 +1,88 @@
+#!/bin/bash
+#set -x
+
+OUTFILE=record-environment.out.txt
+
+#exec &> out.txt
+
+do_help() {
+cat <<EOF
+Usage: $0 [-h] [-p] [command]
+
+Use this script to record your execution environment and optionally
+a program, too.  Running this prints
+
+-p        record Python information
+command   if given, run this command and also record this output.
+EOF
+
+}
+
+while [[ $# -gt 0 ]]; do
+    key=$1
+    case $key in
+	-h) do_help ; exit 0  ;;
+	-a) APPEND=true   ;   shift   ;;
+	-p) PYTHON=true   ;   shift   ;;
+	-v) set -x   ;;
+	-o) OUTPUTFILE=$2
+	    shift
+	    shift
+	    ;;
+	*) break
+	    ;;
+    esac
+done
+OUTPUT=" >> $OUTPUTFILE"
+
+if [[ ! -z "$APPEND" ]] ; then
+    rm "$OUTFILE"
+fi
+
+# Save old stdout and stderr, then redirect both to output file
+echo "Saving output to $OUTFILE"
+exec 13>&1
+exec 14>&2
+exec &>> $OUTFILE
+
+
+# Basic information
+echo 'record-output running at' "$(date)"
+whoami
+hostname
+
+echo
+echo '===== MODULES ====='
+module list
+
+echo
+echo '===== ENVIRONMENT ====='
+env | egrep -i '^[^=]*path|lmod|modules|wrkdir' | sort
+
+if [ ! -z "$PYTHON" ] ; then
+    echo
+    echo '===== PYTHON path ====='
+    which python
+    which python2
+    which python3
+    which pip
+    which conda
+    env | egrep -i 'python|venv|conda' | sort
+    echo "sys.path:"
+    python -c 'import sys, pprint ; pprint.pprint(sys.path)'
+fi
+
+
+# If given, run a program using script to record it
+if [[ $# -gt 0 ]] ; then
+    echo
+    echo
+    echo
+    echo '===== RUNNING COMMAND ====='
+    echo "===== $@ ====="
+
+    # Restore file descriptors
+    exec 1>&13 13>&-
+    exec 2>&14 14>&-
+    script -qa "$OUTFILE" -c "$*"
+fi
