@@ -65,6 +65,9 @@ if [ ! -z "$PYTHON" ] ; then
     which python
     which python2
     which python3
+    which ipython
+    which ipython2
+    which ipython3
     which pip
     which conda
     env | egrep -i 'python|venv|conda' | sort
