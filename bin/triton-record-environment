@@ -56,6 +56,16 @@ echo '===== MODULES ====='
 module list
 
 echo
+echo '===== QUOTA ====='
+/usr/bin/quota
+if test -e ~/.Xauthority ; then
+    echo "~/.Xauthority size=`stat --format='%s' ~/.Xauthority`."
+    if test `stat --format='%s' ~/.Xauthority` -lt 10 ; then
+	echo "WARNING: .Xauthority has size `stat --format='%s' ~/.Xauthority`.  Quota exceeded?"
+    fi
+fi
+
+echo
 echo '===== ENVIRONMENT ====='
 env | egrep -i '^[^=]*(path|lmod|modules|wrkdir)[^=]*=' | sort
 
