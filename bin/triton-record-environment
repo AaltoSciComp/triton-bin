@@ -23,7 +23,9 @@ while [[ $# -gt 0 ]]; do
     case $key in
 	-h) do_help ; exit 0  ;;
 	-a) APPEND=true   ;   shift   ;;
+	-m) MATLAB=true   ;   shift   ;;
 	-p) PYTHON=true   ;   shift   ;;
+	-x) X11=true      ;   shift   ;;
 	-v) set -x   ;;
 	-o) OUTPUTFILE=$2
 	    shift
@@ -67,7 +69,7 @@ fi
 
 echo
 echo '===== ENVIRONMENT ====='
-env | egrep -i '^[^=]*(path|lmod|modules|wrkdir)[^=]*=' | sort
+env | egrep -i '^[^=]*(path|lmod|modules|wrkdir|display)[^=]*=' | sort
 
 echo
 echo '===== SLURM ====='
@@ -86,9 +88,34 @@ if [ ! -z "$PYTHON" ] ; then
     which conda
     echo
     env | egrep -i '^[^=]*(python|conda|venv|virtual)[^=]*=' | sort
-    echo "sys.path:"
     echo
+    echo "sys.path:"
     python -c 'import sys, pprint ; pprint.pprint(sys.path)'
+fi
+
+
+if [ ! -z "$MATLAB" ] ; then
+    echo
+    echo '===== MATLAB path ====='
+    which matlab
+    which matlab_multithread
+    which matlab-glselector.sh
+    echo
+    env | egrep -i '^[^=]*(matlab)[^=]*=' | sort
+    echo
+    echo "matlab path:"
+    matlab -r 'path ; exit'
+fi
+
+if [ ! -z "$X11" ] ; then
+    echo
+    echo '===== X11 info ====='
+    echo '.Xauthority size:' `stat --format='%s' ~/.Xauthority`
+    env | egrep -i '^[^=]*(display)[^=]*=' | sort
+    echo
+    echo 'xauth list:'
+    xauth list | cut -d\  -f1-3 | sort
+    echo
 fi
 
 
