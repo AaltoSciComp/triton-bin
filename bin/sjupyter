@@ -140,7 +140,7 @@ if args.internal or args.local:
 ********************"""%dict(port=port, hostname=hostname))
 
     os.environ.pop('XDG_RUNTIME_DIR', None)
-    cmd = ["srun", "jupyter", "notebook", "--no-browser",
+    cmd = ["jupyter", "notebook", "--no-browser",
                "--port=%d"%port,
                "--ip=%s"%hostname]
     if args.local:
