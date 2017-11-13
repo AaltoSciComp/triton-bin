@@ -51,6 +51,7 @@ exec &>> $OUTFILE
 # Basic information
 echo 'record-output running at' "$(date)"
 whoami
+pwd
 hostname
 
 echo
@@ -86,6 +87,7 @@ if [ ! -z "$PYTHON" ] ; then
     which ipython3
     which pip
     which conda
+    stat --format=%N ~/.conda
     echo
     env | egrep -i '^[^=]*(python|conda|venv|virtual)[^=]*=' | sort
     echo
@@ -100,6 +102,7 @@ if [ ! -z "$MATLAB" ] ; then
     which matlab
     which matlab_multithread
     which matlab-glselector.sh
+    stat --format=%N ~/.matlab
     echo
     env | egrep -i '^[^=]*(matlab)[^=]*=' | sort
     echo
