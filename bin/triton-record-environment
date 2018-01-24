@@ -73,7 +73,7 @@ if test -e ~/.Xauthority ; then
 fi
 
 echo
-echo '===== ENVIRONMENT ====='
+echo '===== ENVIRONMENT (PARTIAL) ====='
 env | egrep -i '^[^=]*(path|lmod|modules|wrkdir|display)[^=]*=' | sort
 
 echo
