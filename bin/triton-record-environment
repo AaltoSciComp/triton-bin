@@ -12,8 +12,12 @@ Usage: $0 [-h] [-p] [command]
 Use this script to record your execution environment and optionally
 a program, too.  Running this prints
 
--p        record Python information
 command   if given, run this command and also record this output.
+-p        record Python information
+-x        record graphical program information
+-m        record Matlab information
+-o file   save the output to this file
+-a        append logs, don't override
 EOF
 
 }
