@@ -143,8 +143,6 @@ if args.internal or args.local:
     cmd = ["jupyter", "notebook", "--no-browser",
                "--port=%d"%port,
                "--ip=%s"%hostname]
-    if args.local:
-        cmd.pop(0)
     cmd += remaining
     if args.verbose: print(cmd)
     os.execvp(cmd[0], cmd)
