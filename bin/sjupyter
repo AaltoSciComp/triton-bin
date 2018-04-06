@@ -31,6 +31,11 @@ MODULE_INIT = "/usr/share/lmod/6.5.1/init/env_modules_python.py"
 # Pick random port for jupyter.  It's OK if we have collisions,
 # jupyter tries many ports starting at this one.
 JPORT = (os.getuid() % 63300) + 2048
+# Find this binary's path.  Follow symlinks, so we go from local disk
+# bin to NFS path guarenteed to be available on all nodes.
+SJUPYTER_EXECUTABLE = os.path.abspath(__file__)
+if os.path.islink(SJUPYTER_EXECUTABLE):
+    SJUPYTER_EXECUTABLE = os.path.realpath(SJUPYTER_EXECUTABLE)
 
 
 # These arguments are used and consumed by the outer script.  Anything
@@ -184,7 +189,7 @@ if args.list or (remaining and remaining[0] == 'list'):
 cmd_srun = ['srun', '--pty', ]
 cmd_srun.append('--partition='+args.partition)
 
-cmd_jupyter = [os.path.abspath(__file__), '--internal']
+cmd_jupyter = [SJUPYTER_EXECUTABLE, '--internal']
 
 if args.cluster:
     cmd_jupyter.append('--cluster')
