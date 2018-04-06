@@ -26,7 +26,7 @@ import socket
 import subprocess
 import time
 
-DEFAULT_MODULE = "anaconda3"
+DEFAULT_MODULE = "jupyterhub/live"
 MODULE_INIT = "/usr/share/lmod/6.5.1/init/env_modules_python.py"
 # Pick random port for jupyter.  It's OK if we have collisions,
 # jupyter tries many ports starting at this one.
@@ -71,7 +71,7 @@ if args.verbose: print(args_inner, remaining2)
 # Does jupyter exist on the path?
 ret = subprocess.call(["which", "jupyter"], stdout=open("/dev/null", 'w'), stderr=subprocess.STDOUT)
 if ret != 0:
-    print("INFO: jupyter is not in PATH, loading default jupyter from anaconda3")
+    print("INFO: jupyter is not in PATH, loading default jupyter from %s"%DEFAULT_MODULE)
     # Load module using native Python support.
     exec(compile(open(MODULE_INIT).read(), MODULE_INIT, 'exec'))
     module('load', DEFAULT_MODULE)
