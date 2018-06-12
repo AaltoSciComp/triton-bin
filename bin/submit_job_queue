@@ -1,0 +1,45 @@
+#!/bin/bash
+
+######################################################
+#
+# submit_job_queue
+#
+# This script submits single slurm script multiple
+# times in a queue so that each job depends on the
+# previous one.
+#
+######################################################
+
+set -e
+
+if [ "$#" -lt 2 ]; then
+    echo 'Usage:
+
+    ./submit_job_queue <ntimes> <sbatch-script> <args to the script>
+'
+    exit 1
+fi
+
+njobs=$1
+slurmscript=$2
+args=${@:3}
+
+jobscript=$(mktemp)
+
+cp $slurmscript $jobscript
+
+for i in $(seq 1 $njobs); do
+    # Create the next job script
+    sed -i '/#SBATCH -d afterok/d' ${jobscript}
+    jobname=$slurmscript
+    if [ $i -gt 1 ] ; then
+        sed -i '2i#SBATCH -d afterok:'${jobid} ${jobscript}
+        jobname=$jobname-depend-$jobid
+    fi
+    cat $jobscript
+    # Submit job and get job id
+    jobid=$(sbatch -J $jobname $jobscript $args | awk '{print $NF}')
+    echo 'Submitted job:' ${jobid}
+    # Remove old jobscript
+done
+rm ${jobscript}
