@@ -163,6 +163,13 @@ def user_script(args):
     - group not set properly.
     """
 
+    # Remove teflon from LD_PRELOAD, if it's there
+    os.environ['LD_PRELOAD'] = ":".join(
+        path
+        for path in os.environ['LD_PRELOAD'].split(':')
+        if 'teflon' not in path
+        )
+
     for path in args.path:
         cmd = ['find', '-P'] + args.path
 
