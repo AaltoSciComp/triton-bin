@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# usage:
+# ./enforce_group_rights_for_dir <dir_name> i.e.
+# ./enforce_group_rights_for_dir quantum-data
+
+if [ -d $1 ] ; then
+  echo $1
+  gid=`stat --format=%g $1`
+  echo chown -R .$gid $1
+  chown -R .$gid $1
+
+  # proper rights for all the directories
+  find $1 -type d -exec chmod g+rwxs {} \;
+
+  # proper rights for all the files
+  find $1 -type f -exec chmod g+rw {} \;
+fi
+
