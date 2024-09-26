@@ -132,6 +132,7 @@ ROOTS = {'/m/cs/scratch',
              '/scratch/cs',
              '/scratch/nbe',
              '/scratch/elec',
+             '/scratch/math',
              '/scratch/phys',
              '/scratch/work',
              }
