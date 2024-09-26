@@ -6,7 +6,7 @@
 
 This program has several primary use cases:
 
-- Users who get "quota exceeded" because of group sticky bit not being
+- Users who get "quota exceeded" because of setgid bit not being
   set.
 
 - Group shared directories with files who are not owned by the proper
@@ -18,7 +18,7 @@ This program has several primary use cases:
 This is a user script that generates one giant "find" command to fix
 these problems efficiently, with only one scan over all files.  By
 defalut, it does nothing but print out the problems, and if you run
-with --fix it will fix them.  By default, it only fixes the sticky
+with --fix it will fix them.  By default, it only fixes the setgid
 problem, but you can use the -s, -g, and -w options respectively to
 fix the other problems.  -a will fix all problems.
 
@@ -62,12 +62,12 @@ IS_ROOT = (UID == 0)
 
 # For reference:
 
-# Make directories sticky:
-# find /scratch/netsys/darko/drvo/datasets/ \
+# Make directories setgid:
+# find /scratch/netsys/name/drvo/datasets/ \
 #     -type d ! -perm /2000 -print -exec chmod g+s {} \;
 
-# Make files non-sticky:
-# find /scratch/netsys/darko/drvo/datasets/ \
+# Make files non-setgid:
+# find /scratch/netsys/name/drvo/datasets/ \
 #     -type f -perm /2000 -print -exec chmod g-s {} \;
 
 def iter_print0(f):
@@ -93,13 +93,13 @@ if IS_ROOT:
 else:
     HAS_PERM_OR_ERROR = ['(', '-uid', str(UID), '-o', '-printf', r"(can't fix, owner=%u)  %p\n", '-false', ')']
 
-# These make directories sticky.
+# These make directories setgid.
 STICKY_PROBLEM = ["-type", "d", #"-perm", "/g+w",
                   "!", "-perm", "/g+s"]
 STICKY_PROBLEM_FIX = [
-                "-printf", r"(fixed) not sticky:    %-42p (%M)\n",
+                "-printf", r"(fixed) not setgid:    %-42p (%M)\n",
                 '-exec', 'chmod', 'g+s', '{}', '+']
-STICKY_PROBLEM_PRINT = ["-printf", r"not sticky:    %-50p (%M)\n"]
+STICKY_PROBLEM_PRINT = ["-printf", r"not setgid:    %-50p (%M)\n"]
 
 # These force directories to g+rwx and files to g+rwX (exec if user
 # is exec).  A special case combines with the sticky problem above.
@@ -160,7 +160,7 @@ def user_script(args):
     """User-runable script using find.
 
     Currently fixes two possible problems in one command:
-    - sticky bit not set on directories
+    - setgid bit not set on directories
     - group not set properly.
     """
 
@@ -205,7 +205,7 @@ def user_script(args):
                     cmd += GROUP_PROBLEM_PRINT
                 cmd.extend([')', ','])
 
-        # Sticky bit problem:
+        # Setgid bit problem:
         if args.s:
             cmd.append("(")
             # Detect problem
@@ -250,7 +250,7 @@ DESCRIPTION = """\
 This program is used for fixing common permission problems on Triton
 filesystems.  It fixes these problems:
 
-- Directories are not sticky (chmod g+s).  This will result in attempts
+- Directories are not setgid (chmod g+s).  This will result in attempts
   to make file in this directory produce "quota exceeded" in a very
   confusing fashion.  (fix: all directories become g+s)
 
@@ -282,7 +282,7 @@ if __name__ == "__main__":
     parser.add_argument("-g", action="store_true",
                         help="Fix group of files (to value of --group)")
     parser.add_argument("-s", action="store_true",
-                        help="Fix sicky bit of directories")
+                        help="Fix setgid bit of directories")
     parser.add_argument("-w", action="store_true",
                         help="Fix group-writeability of files")
     parser.add_argument("--fix", action='store_true',
