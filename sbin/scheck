@@ -1,0 +1,50 @@
+#!/appl/manual_installations/software/slurm2sql/live/venv/bin/python
+import argparse
+import sqlite3
+
+import slurm2sql
+from tabulate import tabulate
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--md', action='store_true', help='Markdown')
+parser.add_argument('--start', default='now-1day', help='Start time, default=%(default)s')
+args = parser.parse_args()
+
+db = sqlite3.connect(':memory:')
+slurm2sql.slurm2sql(db, ['-a', '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES])
+
+print("## User resource wastage")
+print(f"Report of most wasteful users of CPU/mem/GPU since {args.start}.", end=" ")
+print("Before making judgements, always look at user details with `module load slurm2sql` ; `slurm2sql-seff -u USER` or `slurm2sql-sacct -j JOBID`.  Script source: /scratch/scicomp/darstr1/asc-stats/resource-wastage-zulip-batch.sh")
+
+for order in ['cpu_day_waste', 'mem_GiB_day_waste', 'gpu_day_waste']:
+    print(f'### {order}')
+    cur = db.execute(f"""
+    SELECT
+    User,
+    round(sum(Elapsed)/86400,1) AS days,
+
+    round(sum(Elapsed*NCPUS)/86400,1) AS cpu_day,
+    round(sum((1-CPUeff)*Elapsed*NCPUS)/86400,1) AS cpu_day_waste,
+    printf("%2.0f%%", 100*sum(Elapsed*NCPUS*CPUEff)/sum(Elapsed*NCPUS)) AS CPUEff,
+
+    round(sum(Elapsed*MemReq)/1073741824/86400,1) AS mem_GiB_day,
+    round(sum((1-MemEff)*Elapsed*MemReq)/1073741824/86400,1) AS mem_GiB_day_waste,
+    printf("%2.0f%%", 100*sum(Elapsed*MemReq*MemEff)/sum(Elapsed*MemReq)) AS MemEff,
+
+    round(sum(Elapsed*NGPUs)/86400,1) AS gpu_day,
+    round(sum((1-GPUeff)*Elapsed*NGPUs)/86400,1) AS gpu_day_waste,
+    iif(sum(NGpus), printf("%2.0f%%", 100*sum(Elapsed*NGPUs*GPUeff)/sum(Elapsed*NGPUs)), NULL) AS GPUEff
+
+    FROM eff
+    WHERE End IS NOT NULL
+    GROUP BY user
+    ORDER BY {order} DESC NULLS LAST
+    LIMIT 5
+    """)
+    headers = [ x[0] for x in cur.description ]
+    data = cur.fetchall()
+    print(tabulate(data, headers=headers,
+                       tablefmt=('github' if args.md else slurm2sql.compact_table()),
+                       colalign=('left', 'decimal',)+('decimal', 'right')*3))
+    print()

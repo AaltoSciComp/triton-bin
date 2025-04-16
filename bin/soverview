@@ -1,0 +1,68 @@
+#!/appl/manual_installations/software/slurm2sql/live/venv/bin/python
+
+import argparse
+import getpass
+import sqlite3
+
+import slurm2sql
+from tabulate import tabulate
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--md', action='store_true', help='Markdown')
+parser.add_argument('--start', default='now-1day', help='Start time, default=%(default)s')
+parser.add_argument('--user', '-u', default=getpass.getuser(), help='Start time, default=%(default)s')
+args = parser.parse_args()
+
+
+db = sqlite3.connect(':memory:')
+slurm2sql.slurm2sql(db, ['-u', args.user, '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES])
+
+
+# Wait time calculation
+print()
+print("Your average wait times")
+cur = db.execute("""\
+SELECT
+    (CASE WHEN elapsed>=24*3600 THEN 'long,>=1day' WHEN elapsed>=24*3600 THEN 'medium,1hour-1day' ELSE 'short,<1hour' END) AS duration,
+    count(*) AS n,
+    avg(start-submit)/3600 AS waittime_hr
+FROM allocations
+WHERE start IS NOT NULL and submit IS NOT NULL
+GROUP BY duration
+""")
+headers = [ x[0] for x in cur.description ]
+data = cur.fetchall()
+print(tabulate(data, headers=headers,
+               tablefmt=('github' if args.md else slurm2sql.compact_table()),
+               ))
+
+# Efficiency calculation
+print()
+print(f"Your overall efficiency since {args.start}")
+print(f"For details: module load slurm2sql ; slurm2sql-seff ; slurm2sql-sacct")
+cur = db.execute("""\
+SELECT
+    round(sum(Elapsed)/86400,1) AS days,
+    count(*) as n_jobs,
+
+    round(sum(Elapsed*NCPUS)/86400,1) AS cpu_day,
+    --round(sum((1-CPUeff)*Elapsed*NCPUS)/86400,1) AS cpu_day_waste,
+    printf("%2.0f%%", 100*sum(Elapsed*NCPUS*CPUEff)/sum(Elapsed*NCPUS)) AS CPUEff,
+
+    round(sum(Elapsed*MemReq)/1073741824/86400,1) AS mem_GiB_day,
+    --round(sum((1-MemEff)*Elapsed*MemReq)/1073741824/86400,1) AS mem_GiB_day_waste,
+    printf("%2.0f%%", 100*sum(Elapsed*MemReq*MemEff)/sum(Elapsed*MemReq)) AS MemEff,
+
+    round(sum(Elapsed*NGPUs)/86400,1) AS gpu_day,
+    --round(sum((1-GPUeff)*Elapsed*NGPUs)/86400,1) AS gpu_day_waste,
+    iif(sum(NGpus), printf("%2.0f%%", 100*sum(Elapsed*NGPUs*GPUeff)/sum(Elapsed*NGPUs)), NULL) AS GPUEff
+
+FROM eff
+WHERE End IS NOT NULL
+LIMIT 5
+""")
+headers = [ x[0] for x in cur.description ]
+data = cur.fetchall()
+print(tabulate(data, headers=headers,
+               tablefmt=('github' if args.md else slurm2sql.compact_table()),
+               ))
