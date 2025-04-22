@@ -7,7 +7,7 @@ from tabulate import tabulate
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--md', action='store_true', help='Markdown')
-parser.add_argument('--start', default='now-1day', help='Start time, default=%(default)s')
+parser.add_argument('--start', default='now-2day', help='Start time, default=%(default)s')
 args = parser.parse_args()
 
 db = sqlite3.connect(':memory:')
