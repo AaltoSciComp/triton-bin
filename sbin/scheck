@@ -15,7 +15,7 @@ slurm2sql.slurm2sql(db, ['-a', '-S', args.start, '-E', 'now', '--state', slurm2s
 
 if args.md:
     print("## User resource wastage")
-    print(f"Report of most wasteful users of CPU/mem/GPU since {args.start}.  Rerun yourself with `triton-bin:sbin/scheck --start='{args.start}'`.", end=" ")
+    print(f"Report of most wasteful users of CPU/mem/GPU since {args.start}.  Rerun yourself with `module load slurm2sql ; scheck --start='{args.start}'`.", end=" ")
     print("Before making judgements, always look at user details with `module load slurm2sql` ; `slurm2sql-seff -u USER` or `slurm2sql-sacct -j JOBID`.  Script source: /scratch/scicomp/darstr1/asc-stats/resource-wastage-zulip-batch.sh")
 
 for order in ['cpu_day_waste', 'mem_GiB_day_waste', 'gpu_day_waste']:
