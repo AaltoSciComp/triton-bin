@@ -17,8 +17,12 @@ slurm2sql.slurm2sql(db, ['-a', '-S', args.start, '-E', 'now', '--state', slurm2s
 #    print("## User resource wastage")
 #    print(f"Report of the least efficienct users of CPU/mem/GPU since {args.start}.  Rerun yourself with `module load slurm2sql ; scheck --start='{args.start}'`.", end=" ")
 
-for order in ['cpu_day_waste', 'mem_GiB_day_waste', 'gpu_day_waste']:
-    print(f'### {order}')
+for name, order in [
+        ('cpu_day_waste',     'sum((1-CPUeff)*Elapsed*NCPUS* (1-min(max(MemEff,coalesce(GPUeff,0)),1)))'),
+        ('mem_GiB_day_waste', 'sum((1-MemEff)*Elapsed*MemReq*(1-min(max(CPUEff, coalesce(GPUeff,0)),1)))'),
+        #('gpu_day_waste',     'sum((1-GPUeff)*Elapsed*NGPUs* (1-min(max(CPUeff, MemEff),1)))')]:
+        ('gpu_day_waste',     'gpu_day_waste')]:
+    print(f'### {name}')
     cur = db.execute(f"""
     SELECT
     User,
@@ -26,14 +30,17 @@ for order in ['cpu_day_waste', 'mem_GiB_day_waste', 'gpu_day_waste']:
 
     round(sum(Elapsed*NCPUS)/86400,1) AS cpu_day,
     round(sum((1-CPUeff)*Elapsed*NCPUS)/86400,1) AS cpu_day_waste,
+    --round(sum((1-CPUeff)*Elapsed*NCPUS*(1-max(MemEff,coalesce(GPUeff,0))))/86400    ,1) AS cpu_day_waste2,
     printf("%2.0f%%", 100*sum(Elapsed*NCPUS*CPUEff)/sum(Elapsed*NCPUS)) AS CPUEff,
 
     round(sum(Elapsed*MemReq)/1073741824/86400,1) AS mem_GiB_day,
     round(sum((1-MemEff)*Elapsed*MemReq)/1073741824/86400,1) AS mem_GiB_day_waste,
+    --round(sum((1-MemEff)*Elapsed*MemReq*(1-max(CPUEff, coalesce(GPUeff,0))))/1073741824/86400,    1) AS mem_GiB_day_waste2,
     printf("%2.0f%%", 100*sum(Elapsed*MemReq*MemEff)/sum(Elapsed*MemReq)) AS MemEff,
 
     round(sum(Elapsed*NGPUs)/86400,1) AS gpu_day,
     round(sum((1-GPUeff)*Elapsed*NGPUs)/86400,1) AS gpu_day_waste,
+    --round(sum((1-GPUeff)*Elapsed*NGPUs*(1-max(CPUeff, MemEff)))/86400,    1) AS gpu_day_waste2,
     iif(sum(NGpus), printf("%2.0f%%", 100*sum(Elapsed*NGPUs*GPUeff)/sum(Elapsed*NGPUs)), NULL) AS GPUEff
 
     FROM eff
