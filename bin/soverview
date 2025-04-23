@@ -9,18 +9,29 @@ from tabulate import tabulate
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--md', action='store_true', help='Markdown')
-parser.add_argument('--start', default='now-1day', help='Start time, default=%(default)s')
-parser.add_argument('--user', '-u', default=getpass.getuser(), help='Start time, default=%(default)s')
+grp = parser.add_mutually_exclusive_group()
+grp.add_argument('--start', default=None, help='Start time, for example "now-1week", default=%(default)s')
+grp.add_argument('--weeks', default=1, type=int, help='How many weeks history to use. default=%(default)s')
+parser.add_argument('--user', '-u', default=getpass.getuser(), help='User to query, default=%(default)s')
 args = parser.parse_args()
 
+CPU_WASTE_THRESHOLD_PERWEEK = 500
+MEM_GIB_WASTE_THRESHOLD_PERWEEK = 10000
+GPU_WASTE_THRESHOLD_PERWEEK = 50
+
+if args.start is None:
+    args.start = f'now-{args.weeks}week'
+else:
+    args.weeks = None
 
 db = sqlite3.connect(':memory:')
 slurm2sql.slurm2sql(db, ['-u', args.user, '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES])
 
+print(f"Report of resource usage since {args.start} for {args.user}:")
 
 # Wait time calculation
 print()
-print("Your average wait times")
+print("Your average wait times:")
 cur = db.execute("""\
 SELECT
     (CASE WHEN elapsed>=24*3600 THEN 'long,>=1day' WHEN elapsed>=24*3600 THEN 'medium,1hour-1day' ELSE 'short,<1hour' END) AS duration,
@@ -36,10 +47,9 @@ print(tabulate(data, headers=headers,
                tablefmt=('github' if args.md else slurm2sql.compact_table()),
                ))
 
-# Efficiency calculation
+# Efficiency calculation - to print
 print()
-print(f"Your overall efficiency since {args.start}")
-print(f"For details: module load slurm2sql ; slurm2sql-seff ; slurm2sql-sacct")
+print(f"Your overall efficiency since {args.start}: ")
 cur = db.execute("""\
 SELECT
     round(sum(Elapsed)/86400,1) AS days,
@@ -59,10 +69,65 @@ SELECT
 
 FROM eff
 WHERE End IS NOT NULL
-LIMIT 5
 """)
 headers = [ x[0] for x in cur.description ]
 data = cur.fetchall()
 print(tabulate(data, headers=headers,
                tablefmt=('github' if args.md else slurm2sql.compact_table()),
                ))
+
+
+# Efficiency data for analysis
+cur = db.execute("""\
+SELECT
+    sum(Elapsed)/86400 AS days,
+    count(*) as n_jobs,
+
+    sum(Elapsed*NCPUS)/86400 AS cpu_day,
+    sum((1-CPUeff)*Elapsed*NCPUS)/86400 AS cpu_day_waste,
+    sum(Elapsed*NCPUS*CPUEff)/sum(Elapsed*NCPUS) AS CPUEff,
+
+    sum(Elapsed*MemReq)/1073741824/86400 AS mem_GiB_day,
+    sum((1-MemEff)*Elapsed*MemReq)/1073741824/86400 AS mem_GiB_day_waste,
+    sum(Elapsed*MemReq*MemEff)/sum(Elapsed*MemReq) AS MemEff,
+
+    total(Elapsed*NGPUs)/86400 AS gpu_day,
+    total((1-GPUeff)*Elapsed*NGPUs)/86400 AS gpu_day_waste,
+    iif(sum(NGpus), sum(Elapsed*NGPUs*GPUeff)/sum(Elapsed*NGPUs), 0) AS GPUEff
+
+FROM eff
+WHERE End IS NOT NULL
+""")
+headers = [ x[0] for x in cur.description ]
+data = cur.fetchall()
+
+stats = dict(zip(headers, data[0]))
+#print(stats)
+
+if args.weeks:
+    print()
+    warn = False
+    if(stats['cpu_day_waste']) > CPU_WASTE_THRESHOLD_PERWEEK * args.weeks:
+        warn = True
+        print(f"""\
+Your detected CPU efficiency is rather low {stats['CPUEff']*100:.0f}% efficiency for {stats['cpu_day_waste']:.0f} CPU-days unused (used {stats['cpu_day']:.0f} total allocated).
+""")
+    if(stats['mem_GiB_day_waste']) > MEM_GIB_WASTE_THRESHOLD_PERWEEK * args.weeks:
+        warn = True
+        print(f"""\
+Your detected memory efficiency is rather low {stats['MemEff']*100:.0f}% efficiency for {stats['mem_GiB_day_waste']:.0f} GiB-days unused (used {stats['mem_GiB_day']:.0f} total allocated).
+""")
+    if(stats['gpu_day_waste']) > GPU_WASTE_THRESHOLD_PERWEEK * args.weeks:
+        warn = True
+        print(f"""\
+Your detected GPU efficiency is rather low at {stats['GPUEff']*100:.0f}% efficiency for {stats['gpu_day_waste']:.0f} GPU-days unused ({stats['gpu_day']:.0f} total allocated in the period.)
+""")
+    if warn:
+        print(f"""\
+Please look closely at your usage first, before jumping to conclusions.  For example, you don't want too few CPUs to feed data to the GPUs, or there may be a lot of wasted memory beacuse your jobs use unpredictable amounts of memory so you have to over-allocate.  You can look at each job's performance with the below command.  In general, each job should be as close to 100% in at least one of CPU, GPU, or Mem (whichever are the limiting factors).
+
+module load slurm2sql
+slurm2sql-seff --completed --starttime 'f{args.start}'
+
+Performance checking is hard!  Come talk to us and we can make sense of it together: https://scicomp.aalto.fi/help/
+""")
