@@ -10,7 +10,7 @@ from tabulate import tabulate
 parser = argparse.ArgumentParser()
 parser.add_argument('--md', action='store_true', help='Markdown')
 grp = parser.add_mutually_exclusive_group()
-grp.add_argument('--start', default=None, help='Start time, for example "now-1week", default=%(default)s')
+grp.add_argument('--start', '-S', default=None, help='Start time, for example "now-1week", default=%(default)s')
 grp.add_argument('--weeks', default=1, type=int, help='How many weeks history to use. default=%(default)s')
 parser.add_argument('--user', '-u', default=getpass.getuser(), help='User to query, default=%(default)s')
 args = parser.parse_args()
