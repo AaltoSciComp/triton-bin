@@ -1,4 +1,4 @@
-#!/appl/manual_installations/software/slurm2sql/live/venv/bin/python
+#!/usr/bin/env python
 import argparse
 import sqlite3
 
