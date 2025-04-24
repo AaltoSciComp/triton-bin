@@ -28,6 +28,13 @@ else:
 sacct_filter = ['-u', args.user, '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES]
 db = slurm2sql.import_or_open_db(args, sacct_filter)
 
+# If we run sacct, then args.user is set to None so we don't do double filtering here
+if args.user:
+    where_user = "and user=:user"
+else:
+    where_user = ''
+
+
 print(f"Report of resource usage since {args.start} for {args.user}:")
 
 # Wait time calculation
@@ -39,9 +46,9 @@ SELECT
     count(*) AS n,
     avg(start-submit)/3600 AS waittime_hr
 FROM allocations
-WHERE start IS NOT NULL and submit IS NOT NULL
+WHERE start IS NOT NULL and submit IS NOT NULL {where_user}
 GROUP BY duration
-""")
+""", {'user': args.user})
 headers = [ x[0] for x in cur.description ]
 data = cur.fetchall()
 print(tabulate(data, headers=headers,
