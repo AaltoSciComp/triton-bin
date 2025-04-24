@@ -13,6 +13,7 @@ grp = parser.add_mutually_exclusive_group()
 grp.add_argument('--start', '-S', default=None, help='Start time, for example "now-1week", default=%(default)s')
 grp.add_argument('--weeks', default=1, type=int, help='How many weeks history to use. default=%(default)s')
 parser.add_argument('--user', '-u', default=getpass.getuser(), help='User to query, default=%(default)s')
+parser.add_argument('--db', help="Read from this DB.  Don't import new data.  There is no chance to apply any sacct filters, so you should have created the database with the right filters already.")
 args = parser.parse_args()
 
 CPU_WASTE_THRESHOLD_PERWEEK = 500
@@ -24,8 +25,8 @@ if args.start is None:
 else:
     args.weeks = None
 
-db = sqlite3.connect(':memory:')
-slurm2sql.slurm2sql(db, ['-u', args.user, '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES])
+sacct_filter = ['-u', args.user, '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES]
+db = slurm2sql.import_or_open_db(args, sacct_filter)
 
 print(f"Report of resource usage since {args.start} for {args.user}:")
 

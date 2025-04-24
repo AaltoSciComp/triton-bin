@@ -5,15 +5,20 @@ import sqlite3
 import slurm2sql
 from tabulate import tabulate
 
+description = """\
+Prints an overall summary of users whose jobs
+"""
 parser = argparse.ArgumentParser()
 parser.add_argument('--md', action='store_true', help='Markdown')
 parser.add_argument('--start', '-S', default='now-2day', help='Start time, default=%(default)s')
 parser.add_argument('--count', '-c', default=5, type=int, help='Number of rows for each measure, default=%(default)s')
 parser.add_argument('--native-order', action='store_true', help="Don't use a heuristic to sort by most important to check")
+parser.add_argument('--db', help="Read from this DB.  Don't import new data.  There is no chance to apply any sacct filters, so you should have created the database with the right filters already.")
 args = parser.parse_args()
 
-db = sqlite3.connect(':memory:')
-slurm2sql.slurm2sql(db, ['-a', '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES])
+
+sacct_filter = ['-a', '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES]
+db = slurm2sql.import_or_open_db(args, sacct_filter)
 
 #if args.md:
 #    print("## User resource wastage")
