@@ -128,7 +128,7 @@ Your detected GPU efficiency is rather low at {stats['GPUEff']*100:.0f}% efficie
 Please look closely at your usage first, before jumping to conclusions.  For example, you don't want too few CPUs to feed data to the GPUs, or there may be a lot of wasted memory beacuse your jobs use unpredictable amounts of memory so you have to over-allocate.  You can look at each job's performance with the below command.  In general, each job should be as close to 100% in at least one of CPU, GPU, or Mem (whichever are the limiting factors).
 
 module load slurm2sql
-slurm2sql-seff --completed --starttime 'f{args.start}'
+seff2 --completed --starttime 'f{args.start}'
 
 Performance checking is hard!  Come talk to us and we can make sense of it together: https://scicomp.aalto.fi/help/
 """)
