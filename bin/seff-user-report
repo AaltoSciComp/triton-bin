@@ -9,12 +9,24 @@ from tabulate import tabulate
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--md', action='store_true', help='Markdown')
-grp = parser.add_mutually_exclusive_group()
-grp.add_argument('--start', '-S', default=None, help='Start time, for example "now-1week", default=%(default)s')
-grp.add_argument('--weeks', default=1, type=int, help='How many weeks history to use. default=%(default)s')
-parser.add_argument('--user', '-u', default=getpass.getuser(), help='User to query, default=%(default)s')
 parser.add_argument('--db', help="Read from this DB.  Don't import new data.  There is no chance to apply any sacct filters, so you should have created the database with the right filters already.")
+
+# No --db compatibility
+group = parser.add_argument_group(description="Selectors that only works when getting new data (not with --db):")
+date_grp = group.add_mutually_exclusive_group()
+date_grp.add_argument('--start', '-S', default=None, help='Start time, for example "now-1week", default=%(default)s')
+date_grp.add_argument('--weeks', default=1, type=int, help='How many weeks history to use. default=%(default)s')
+group.add_argument('--completed', '-c', action='store_true',
+                    help=f"Select for completed job states ({slurm2sql.COMPLETED_STATES})  You need to specify --starttime (-S) at some point in the past, due to how saccont default works (for example '-S now-1week').  This option automatically sets '-E now'.  Not compatible with --db.")
+# --db compatibility
+group = parser.add_argument_group(description="Selectors that also work with --db:")
+group.add_argument('--user', '-u', default=getpass.getuser(), help='User to query, default=%(default)s')
+group.add_argument('--partition', '-r', help="Jobs in this partition.  Works with --db.  Getting fresh data, an exact match and can be a comma separated list.  With --db, a raw glob match.")
+
+
 args = parser.parse_args()
+
+print(f"Report of resource usage since {args.start} for {args.user}:")
 
 CPU_WASTE_THRESHOLD_PERWEEK = 500
 MEM_GIB_WASTE_THRESHOLD_PERWEEK = 10000
@@ -25,13 +37,13 @@ if args.start is None:
 else:
     args.weeks = None
 
-sacct_filter = ['-u', args.user, '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES]
+sacct_filter = ['-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES]
 db = slurm2sql.import_or_open_db(args, sacct_filter)
 
 # If we run sacct, then args.user is set to None so we don't do double filtering here
 where = slurm2sql.args_to_sql_where(args)
-
-print(f"Report of resource usage since {args.start} for {args.user}:")
+print(where)
+print(args)
 
 # Wait time calculation
 print()
@@ -44,7 +56,7 @@ SELECT
 FROM allocations
 WHERE start IS NOT NULL and submit IS NOT NULL {where}
 GROUP BY duration
-""", {'user': args.user})
+""", {'user': args.user, 'partition': args.partition})
 headers = [ x[0] for x in cur.description ]
 data = cur.fetchall()
 print(tabulate(data, headers=headers,
@@ -54,7 +66,7 @@ print(tabulate(data, headers=headers,
 # Efficiency calculation - to print
 print()
 print(f"Your overall efficiency since {args.start}: ")
-cur = db.execute("""\
+cur = db.execute(f"""\
 SELECT
     round(sum(Elapsed)/86400,1) AS days,
     count(*) as n_jobs,
@@ -63,17 +75,17 @@ SELECT
     --round(sum((1-CPUeff)*Elapsed*NCPUS)/86400,1) AS cpu_day_waste,
     printf("%2.0f%%", 100*sum(Elapsed*NCPUS*CPUEff)/sum(Elapsed*NCPUS)) AS CPUEff,
 
-    round(sum(Elapsed*MemReq)/1073741824/86400,1) AS mem_GiB_day,
-    --round(sum((1-MemEff)*Elapsed*MemReq)/1073741824/86400,1) AS mem_GiB_day_waste,
-    printf("%2.0f%%", 100*sum(Elapsed*MemReq*MemEff)/sum(Elapsed*MemReq)) AS MemEff,
+    round(sum(Elapsed*AllocMem)/1073741824/86400,1) AS mem_GiB_day,
+    --round(sum((1-MemEff)*Elapsed*AllocMem)/1073741824/86400,1) AS mem_GiB_day_waste,
+    printf("%2.0f%%", 100*sum(Elapsed*TotalMem)/sum(Elapsed*AllocMem)) AS MemEff,
 
     round(sum(Elapsed*NGPUs)/86400,1) AS gpu_day,
     --round(sum((1-GPUeff)*Elapsed*NGPUs)/86400,1) AS gpu_day_waste,
     iif(sum(NGpus), printf("%2.0f%%", 100*sum(Elapsed*NGPUs*GPUeff)/sum(Elapsed*NGPUs)), NULL) AS GPUEff
 
 FROM eff
-WHERE End IS NOT NULL
-""")
+WHERE End IS NOT NULL {where}
+""", {'user': args.user, 'partition': args.partition})
 headers = [ x[0] for x in cur.description ]
 data = cur.fetchall()
 print(tabulate(data, headers=headers,
@@ -82,7 +94,7 @@ print(tabulate(data, headers=headers,
 
 
 # Efficiency data for analysis
-cur = db.execute("""\
+cur = db.execute(f"""\
 SELECT
     sum(Elapsed)/86400 AS days,
     count(*) as n_jobs,
@@ -91,17 +103,17 @@ SELECT
     sum((1-CPUeff)*Elapsed*NCPUS)/86400 AS cpu_day_waste,
     sum(Elapsed*NCPUS*CPUEff)/sum(Elapsed*NCPUS) AS CPUEff,
 
-    sum(Elapsed*MemReq)/1073741824/86400 AS mem_GiB_day,
-    sum((1-MemEff)*Elapsed*MemReq)/1073741824/86400 AS mem_GiB_day_waste,
-    sum(Elapsed*MemReq*MemEff)/sum(Elapsed*MemReq) AS MemEff,
+    sum(Elapsed*AllocMem)/1073741824/86400 AS mem_GiB_day,
+    sum((AllocMem-TotalMem)*Elapsed)/1073741824/86400 AS mem_GiB_day_waste,
+    sum(Elapsed*TotalMem)/sum(Elapsed*AllocMem) AS MemEff,
 
     total(Elapsed*NGPUs)/86400 AS gpu_day,
     total((1-GPUeff)*Elapsed*NGPUs)/86400 AS gpu_day_waste,
     iif(sum(NGpus), sum(Elapsed*NGPUs*GPUeff)/sum(Elapsed*NGPUs), 0) AS GPUEff
 
 FROM eff
-WHERE End IS NOT NULL
-""")
+WHERE End IS NOT NULL {where}
+""", {'user': args.user, 'partition': args.partition})
 headers = [ x[0] for x in cur.description ]
 data = cur.fetchall()
 
