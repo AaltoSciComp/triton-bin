@@ -29,24 +29,20 @@ sacct_filter = ['-u', args.user, '-S', args.start, '-E', 'now', '--state', slurm
 db = slurm2sql.import_or_open_db(args, sacct_filter)
 
 # If we run sacct, then args.user is set to None so we don't do double filtering here
-if args.user:
-    where_user = "and user=:user"
-else:
-    where_user = ''
-
+where = slurm2sql.args_to_sql_where(args)
 
 print(f"Report of resource usage since {args.start} for {args.user}:")
 
 # Wait time calculation
 print()
 print("Your average wait times:")
-cur = db.execute("""\
+cur = db.execute(f"""\
 SELECT
     (CASE WHEN elapsed>=24*3600 THEN 'long,>=1day' WHEN elapsed>=24*3600 THEN 'medium,1hour-1day' ELSE 'short,<1hour' END) AS duration,
     count(*) AS n,
     avg(start-submit)/3600 AS waittime_hr
 FROM allocations
-WHERE start IS NOT NULL and submit IS NOT NULL {where_user}
+WHERE start IS NOT NULL and submit IS NOT NULL {where}
 GROUP BY duration
 """, {'user': args.user})
 headers = [ x[0] for x in cur.description ]
