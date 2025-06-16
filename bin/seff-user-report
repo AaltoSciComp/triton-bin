@@ -16,8 +16,6 @@ group = parser.add_argument_group(description="Selectors that only works when ge
 date_grp = group.add_mutually_exclusive_group()
 date_grp.add_argument('--start', '-S', default=None, help='Start time, for example "now-1week", default=%(default)s')
 date_grp.add_argument('--weeks', default=1, type=int, help='How many weeks history to use. default=%(default)s')
-group.add_argument('--completed', '-c', action='store_true',
-                    help=f"Select for completed job states ({slurm2sql.COMPLETED_STATES})  You need to specify --starttime (-S) at some point in the past, due to how saccont default works (for example '-S now-1week').  This option automatically sets '-E now'.  Not compatible with --db.")
 # --db compatibility
 group = parser.add_argument_group(description="Selectors that also work with --db:")
 group.add_argument('--user', '-u', default=getpass.getuser(), help='User to query, default=%(default)s')
@@ -37,13 +35,13 @@ if args.start is None:
 else:
     args.weeks = None
 
-sacct_filter = ['-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES]
+sacct_filter = ['-S', args.start, '-E', 'now', '--state', slurm2sql.ENDED_STATES]
 db = slurm2sql.import_or_open_db(args, sacct_filter)
 
 # If we run sacct, then args.user is set to None so we don't do double filtering here
 where = slurm2sql.args_to_sql_where(args)
-print(where)
-print(args)
+#print(where)
+#print(args)
 
 # Wait time calculation
 print()
@@ -84,7 +82,7 @@ SELECT
     iif(sum(NGpus), printf("%2.0f%%", 100*sum(Elapsed*NGPUs*GPUeff)/sum(Elapsed*NGPUs)), NULL) AS GPUEff
 
 FROM eff
-WHERE End IS NOT NULL {where}
+WHERE Start IS NOT NULL and End IS NOT NULL {where}
 """, {'user': args.user, 'partition': args.partition})
 headers = [ x[0] for x in cur.description ]
 data = cur.fetchall()
@@ -112,7 +110,7 @@ SELECT
     iif(sum(NGpus), sum(Elapsed*NGPUs*GPUeff)/sum(Elapsed*NGPUs), 0) AS GPUEff
 
 FROM eff
-WHERE End IS NOT NULL {where}
+WHERE Start IS NOT NULL and End IS NOT NULL {where}
 """, {'user': args.user, 'partition': args.partition})
 headers = [ x[0] for x in cur.description ]
 data = cur.fetchall()
@@ -143,7 +141,7 @@ Your detected GPU efficiency is rather low at {stats['GPUEff']*100:.0f}% efficie
 Please look closely at your usage first, before jumping to conclusions.  For example, you don't want too few CPUs to feed data to the GPUs, or there may be a lot of wasted memory beacuse your jobs use unpredictable amounts of memory so you have to over-allocate.  You can look at each job's performance with the below command.  In general, each job should be as close to 100% in at least one of CPU, GPU, or Mem (whichever are the limiting factors).
 
 module load slurm2sql
-seff2 --completed --starttime 'f{args.start}'
+seff2 --ended --starttime 'f{args.start}'
 
 Performance checking is hard!  Come talk to us and we can make sense of it together: https://scicomp.aalto.fi/help/
 """)

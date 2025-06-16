@@ -17,7 +17,7 @@ parser.add_argument('--db', help="Read from this DB.  Don't import new data.  Th
 args = parser.parse_args()
 
 
-sacct_filter = ['-a', '-S', args.start, '-E', 'now', '--state', slurm2sql.COMPLETED_STATES]
+sacct_filter = ['-a', '-S', args.start, '-E', 'now', '--state', slurm2sql.ENDED_STATES]
 db = slurm2sql.import_or_open_db(args, sacct_filter)
 
 #if args.md:
@@ -51,7 +51,7 @@ for name, order in [
     iif(sum(NGpus), printf("%2.0f%%", 100*sum(Elapsed*NGPUs*GPUeff)/sum(Elapsed*NGPUs)), NULL) AS GPUEff
 
     FROM eff
-    WHERE End IS NOT NULL
+    WHERE Start IS NOT NULL and End IS NOT NULL
     GROUP BY user
     ORDER BY {name if args.native_order else order} DESC NULLS LAST
     LIMIT {args.count}
