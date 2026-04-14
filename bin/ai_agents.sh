@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# ai-agents-audit.sh — Count AI coding agents on a login node
+# No sudo needed. Just run it.
+
+PS_SNAPSHOT=$(ps -eo user=,args= --no-headers 2>/dev/null)
+
+# agent_label | extended-grep pattern (case-insensitive, first match wins)
+AGENTS=(
+  "Claude Code|claude|@anthropic|claude-code"
+  "Codex (OpenAI)|codex"
+  "Cursor|cursor-server|cursor"
+  "GitHub Copilot|copilot|github\.copilot"
+  "Antigravity (Google)|antigravity"
+  "OpenCode|opencode"
+  "Aider|aider"
+  "Continue|continue-server|continue\.extensions"
+  "Cody (Sourcegraph)|cody|sourcegraph\.cody"
+  "Windsurf/Codeium|windsurf|codeium"
+  "Amazon Q|amazon-q|aws-toolkit.*q"
+  "Tabnine|tabnine"
+  "Supermaven|supermaven"
+  "Roo Code|roo-code|roocode"
+  "Augment Code|augment-code|augmentcode"
+)
+
+declare -A AGENT_USERS AGENT_PROCS
+
+for entry in "${AGENTS[@]}"; do
+  label="${entry%%|*}"
+  pattern="${entry#*|}"
+  AGENT_PROCS[$label]=0
+  AGENT_USERS[$label]=""
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    read -r user _rest <<< "$line"
+    AGENT_PROCS[$label]=$(( ${AGENT_PROCS[$label]} + 1 ))
+    AGENT_USERS[$label]+="$user"$'\n'
+  done < <(echo "$PS_SNAPSHOT" | grep -iE "$pattern" | grep -v "grep ")
+done
+
+# ── Summary table ──────────────────────────────────────────────
+echo ""
+echo "  AI Coding Agents — $(hostname) — $(date '+%Y-%m-%d %H:%M')"
+echo "  ─────────────────────────────────────────────────"
+printf "  %-24s %6s %8s\n" "Agent" "Users" "Procs"
+printf "  %-24s %6s %8s\n" "────────────────────────" "──────" "────────"
+
+total_users="" total_procs=0
+for entry in "${AGENTS[@]}"; do
+  label="${entry%%|*}"
+  procs=${AGENT_PROCS[$label]}
+  if [[ $procs -gt 0 ]]; then
+    ucount=$(echo -n "${AGENT_USERS[$label]}" | sort -u | grep -c . 2>/dev/null || echo 0)
+  else
+    ucount=0
+  fi
+  printf "  %-24s %6d %8d\n" "$label" "$ucount" "$procs"
+  total_procs=$(( total_procs + procs ))
+  total_users+="${AGENT_USERS[$label]}"
+done
+
+total_unique=$(echo -n "$total_users" | sort -u | grep -c . 2>/dev/null || echo 0)
+printf "  %-24s %6s %8s\n" "────────────────────────" "──────" "────────"
+printf "  %-24s %6d %8d\n" "TOTAL" "$total_unique" "$total_procs"
+
+# ── Per-agent user breakdown ───────────────────────────────────
+for entry in "${AGENTS[@]}"; do
+  label="${entry%%|*}"
+  [[ ${AGENT_PROCS[$label]} -eq 0 ]] && continue
+  echo ""
+  echo "  $label"
+  echo -n "${AGENT_USERS[$label]}" | sort | uniq -c | sort -rn | \
+    while read -r count user; do
+      printf "    %-20s %3d procs\n" "$user" "$count"
+    done
+done
+
+echo ""
+
