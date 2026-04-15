@@ -23,6 +23,7 @@ AGENTS=(
   "Supermaven|supermaven"
   "Roo Code|roo-code|roocode"
   "Augment Code|augment-code|augmentcode"
+  "JetBrains AI (Remote Dev)|JetBrains/RemoteDev|remote-dev-server\.sh"
 )
 
 declare -A AGENT_USERS AGENT_PROCS
