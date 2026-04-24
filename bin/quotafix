@@ -244,6 +244,14 @@ def user_script(args):
         #print p.stdout.read()
         #print p.stderr.read()
 
+        if args.A:
+            print("Now removing all ACLs.  This may take a while...")
+            cmd = ['setfacl', '-k', '-b', '-R'] + args.path
+            if VERBOSE:
+                print(cmd)
+            p = subprocess.Popen(cmd)
+
+
 
 DESCRIPTION = """\
 
@@ -278,7 +286,9 @@ if __name__ == "__main__":
     #subparsers = parser.add_subparsers()
 
     parser.add_argument("-a", action="store_true",
-                        help="Fix all problems (-gsw)")
+                        help="Fix group/setgid/writability problems (-gsw) (not ACLs)")
+    parser.add_argument("-A", action="store_true",
+                        help="Remove all ACLs of files (this unconditionally runs it on all files and at least doubles the amount of IO syscalls)")
     parser.add_argument("-g", action="store_true",
                         help="Fix group of files (to value of --group)")
     parser.add_argument("-s", action="store_true",
@@ -303,4 +313,3 @@ if __name__ == "__main__":
         args.g = args.s = args.w = True
 
     user_script(args)
-
