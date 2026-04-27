@@ -7,5 +7,5 @@ declare -A CHECKS=(
 
 for dir in "${!CHECKS[@]}"; do
     expected="${CHECKS[$dir]}"
-    ls -Al "$dir" 2>/dev/null | awk -v exp="$expected" '$1~/^d/ && $1!=exp {print}'
+    ls -Al "$dir" 2>/dev/null | awk -v expected="$expected" '$1~/^d/ && $1!=expected {print}'
 done
