@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+declare -A CHECKS=(
+    ["/scratch/work"]="drwx--S---"
+    ["/home"]="drwx------"
+)
+
+for dir in "${!CHECKS[@]}"; do
+    expected="${CHECKS[$dir]}"
+    ls -Al "$dir" 2>/dev/null | awk -v exp="$expected" '$1~/^d/ && $1!=exp {print}'
+done
