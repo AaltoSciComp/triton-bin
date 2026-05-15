@@ -1,11 +1,41 @@
 #!/usr/bin/env bash
 
 declare -A CHECKS=(
-    ["/scratch/work"]="drwx--S---|drwxrwx---"
+    ["/scratch/work"]="drwx--S---|drwxrws---"
     ["/home"]="drwx------"
 )
 
+# Existing checks: immediate subdirectories of listed dirs
 for dir in "${!CHECKS[@]}"; do
     expected="${CHECKS[$dir]}"
-    ls -Al "$dir" 2>/dev/null | awk -v expected="$expected" '$1~/^d/ && $1!~("^("expected")$") {print}'
+    ls -Al "$dir" 2>/dev/null | awk -v expected="$expected" '
+        $1 ~ /^d/ && $1 !~ ("^(" expected ")$") { print }
+    '
+done
+
+# Group folders: /scratch/SOMETHING/foldername
+# Must be exactly drwxrws---
+find /scratch \
+    \( -path /scratch/rse -o \
+       -path /scratch/rse/\* -o \
+       -path /scratch/apps -o \
+       -path /scratch/apps/\* -o \
+       -path /scratch/courses -o \
+       -path /scratch/courses/\* -o \
+       -path /scratch/scicomp -o \
+       -path /scratch/scicomp/\* -o \
+       -path /scratch/shareddata -o \
+       -path /scratch/shareddata/\* -o \
+       -path /scratch/scip -o \
+       -path /scratch/scip/\* \) -prune -o \
+    -mindepth 2 -maxdepth 2 \
+    -type d \
+    ! -path '/scratch/work/*' \
+    -print0 2>/dev/null |
+while IFS= read -r -d '' dir; do
+    perms=$(stat -c '%A' "$dir" 2>/dev/null) || continue
+
+    if [[ "$perms" != "drwxrws---" ]]; then
+        ls -ld "$dir"
+    fi
 done
