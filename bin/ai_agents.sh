@@ -13,6 +13,7 @@ AGENTS=(
   "Cursor|/\.cursor-server/bin/|(^|[[:space:]/])cursor-server([[:space:]]|$)"
   "GitHub Copilot|copilot|github\.copilot"
   "Antigravity (Google)|antigravity|/\.gemini/bin/agy([[:space:]]|$)"
+  "Gemini CLI|(^|[[:space:]/])gemini([[:space:]]|$)|@google/gemini-cli"
   "OpenCode|(^|[[:space:]/])opencode([[:space:]]|$)"
   "Aider|aider"
   "Continue|continue-server|continue\.extensions"
@@ -23,9 +24,12 @@ AGENTS=(
   "Supermaven|supermaven"
   "Roo Code|roo-code|roocode"
   "Augment Code|augment-code|augmentcode"
-  "JetBrains AI (Remote Dev)|JetBrains/RemoteDev|remote-dev-server\.sh"
+  "JetBrains (Remote Dev)|JetBrains/RemoteDev|remote-dev-server\.sh"
   "Kilo Code|kilocode\.kilo-code|/kilo([[:space:]]|$)"
   "Mistral Vibe|mistralai\.mistral-vibe-code|vibe-acp"
+  "Pi Coding Agent|(^|[[:space:]/])pi([[:space:]]|$)|pi-coding-agent"
+  "Goose|(^|[[:space:]/])goose([[:space:]]|$)"
+  "Kiro|(^|[[:space:]/])kiro([[:space:]]|$)|/\.kiro/"
 )
 
 # Refactored counting logic
