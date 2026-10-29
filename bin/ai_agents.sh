@@ -10,10 +10,10 @@ PS_SNAPSHOT=$(ps -eo user=,args= --no-headers 2>/dev/null)
 AGENTS=(
   "Claude Code|claude|@anthropic|claude-code"
   "Codex (OpenAI)|codex"
-  "Cursor|cursor-server|cursor"
+  "Cursor|/\.cursor-server/bin/|(^|[[:space:]/])cursor-server([[:space:]]|$)"
   "GitHub Copilot|copilot|github\.copilot"
-  "Antigravity (Google)|antigravity"
-  "OpenCode|opencode"
+  "Antigravity (Google)|antigravity|/\.gemini/bin/agy([[:space:]]|$)"
+  "OpenCode|(^|[[:space:]/])opencode([[:space:]]|$)"
   "Aider|aider"
   "Continue|continue-server|continue\.extensions"
   "Cody (Sourcegraph)|cody|sourcegraph\.cody"
