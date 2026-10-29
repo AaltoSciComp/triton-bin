@@ -100,3 +100,56 @@ done
 
 echo ""
 
+# ── Potential YOLO / unrestricted approval modes (visible CLI flags only) ──
+echo ""
+echo "  AI agents with approval bypass — CLI flags only"
+echo "  ───────────────────────────────────────────────"
+YOLO_HITS=""
+while IFS= read -r line; do
+  read -r user cmd <<< "$line"
+  read -r exe opts <<< "$cmd"
+  # Codex installed via npm often launches as: node /path/to/codex ...
+  if [[ ${exe##*/} == node ]]; then
+    read -r exe opts <<< "$opts"
+  fi
+
+  [[ $exe == */.claude/remote/ccd-cli/* ]] && exe=claude
+
+  agent=""
+  case "${exe##*/}" in
+    claude)
+      [[ $opts =~ (^|[[:space:]])--dangerously-skip-permissions([[:space:]]|$) ||
+         $opts =~ (^|[[:space:]])--permission-mode(=|[[:space:]]+)bypassPermissions([[:space:]]|$) ]] && agent="Claude Code" ;;
+    codex)
+      [[ $opts =~ (^|[[:space:]])(--yolo|--dangerously-bypass-approvals-and-sandbox)([[:space:]]|$) ]] && agent="Codex"
+      if [[ $opts =~ (^|[[:space:]])(--sandbox|-s)(=|[[:space:]]+)danger-full-access([[:space:]]|$) &&
+            $opts =~ (^|[[:space:]])(--ask-for-approval|-a)(=|[[:space:]]+)never([[:space:]]|$) ]]; then
+        agent="Codex"
+      fi ;;
+    gemini|qwen)
+      [[ $opts =~ (^|[[:space:]])(--yolo|-y|--approval-mode(=|[[:space:]]+)yolo)([[:space:]]|$) ]] && agent="${exe##*/}" ;;
+    copilot|copilot-runtime)
+      [[ $opts =~ (^|[[:space:]])(--yolo|--allow-all|--allow-all-tools)([[:space:]]|$) ]] && agent="GitHub Copilot" ;;
+    cursor-agent)
+      [[ $opts =~ (^|[[:space:]])(--yolo|--force|-f)([[:space:]]|$) ]] && agent="Cursor" ;;
+    opencode)
+      [[ $opts =~ (^|[[:space:]])--auto([[:space:]]|$) ]] && agent="OpenCode" ;;
+    aider)
+      [[ $opts =~ (^|[[:space:]])--yes-always([[:space:]]|$) ]] && agent="Aider" ;;
+    vibe|vibe-acp)
+      [[ $opts =~ (^|[[:space:]])(--yolo|--auto-approve|--agent(=|[[:space:]]+)auto-approve)([[:space:]]|$) ]] && agent="Mistral Vibe" ;;
+    kiro-cli)
+      [[ $opts =~ (^|[[:space:]])--trust-all-tools([[:space:]]|$) ]] && agent="Kiro" ;;
+    agy)
+      [[ $opts =~ (^|[[:space:]])--dangerously-skip-permissions([[:space:]]|$) ]] && agent="Antigravity" ;;
+  esac
+  [[ -n $agent ]] && YOLO_HITS+="$user"$'\t'"$agent"$'\n'
+done <<< "$PS_SNAPSHOT"
+
+if [[ -n $YOLO_HITS ]]; then
+  printf '    %-20s %s\n' 'User' 'Agent'
+  printf '%s' "$YOLO_HITS" | sort -u | awk -F '\t' '{printf "    %-20s %s\n", $1, $2}'
+else
+  echo "    None detected"
+fi
+
