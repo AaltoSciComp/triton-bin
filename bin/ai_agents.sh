@@ -24,6 +24,8 @@ AGENTS=(
   "Roo Code|roo-code|roocode"
   "Augment Code|augment-code|augmentcode"
   "JetBrains AI (Remote Dev)|JetBrains/RemoteDev|remote-dev-server\.sh"
+  "Kilo Code|kilocode\.kilo-code|/kilo([[:space:]]|$)"
+  "Mistral Vibe|mistralai\.mistral-vibe-code|vibe-acp"
 )
 
 declare -A AGENT_USERS AGENT_PROCS
