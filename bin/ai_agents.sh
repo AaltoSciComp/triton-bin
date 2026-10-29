@@ -28,20 +28,34 @@ AGENTS=(
   "Mistral Vibe|mistralai\.mistral-vibe-code|vibe-acp"
 )
 
+# Refactored counting logic
 declare -A AGENT_USERS AGENT_PROCS
 
 for entry in "${AGENTS[@]}"; do
-  label="${entry%%|*}"
-  pattern="${entry#*|}"
-  AGENT_PROCS[$label]=0
-  AGENT_USERS[$label]=""
-  while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    read -r user _rest <<< "$line"
-    AGENT_PROCS[$label]=$(( ${AGENT_PROCS[$label]} + 1 ))
-    AGENT_USERS[$label]+="$user"$'\n'
-  done < <(echo "$PS_SNAPSHOT" | grep -iE "$pattern" | grep -v "grep ")
+    label="${entry%%|*}"
+    AGENT_PROCS[$label]=0
+    AGENT_USERS[$label]=""
 done
+
+shopt -s nocasematch
+
+while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    read -r user cmd <<< "$line"
+
+    for entry in "${AGENTS[@]}"; do
+        label="${entry%%|*}"
+        pattern="${entry#*|}"
+
+        if [[ "$cmd" =~ $pattern ]]; then
+            AGENT_PROCS[$label]=$(( ${AGENT_PROCS[$label]} + 1 ))
+            AGENT_USERS[$label]+="$user"$'\n'
+            break  # First match wins
+        fi
+    done
+done <<< "$PS_SNAPSHOT"
+
+shopt -u nocasematch
 
 # ── Summary table ──────────────────────────────────────────────
 echo ""
