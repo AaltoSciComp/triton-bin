@@ -161,3 +161,33 @@ else
   echo "    None detected"
 fi
 
+# ── Email batches for users running AI agents ──────────────────
+echo ""
+echo "  Email batches — manual sending"
+
+for entry in "${AGENTS[@]}"; do
+  label="${entry%%|*}"
+  [[ ${AGENT_PROCS[$label]} -eq 0 ]] && continue
+
+  users=$(printf '%s' "${AGENT_USERS[$label]}" |
+    sed '/^$/d' | sort -u | paste -sd, - | sed 's/,/, /g')
+
+  echo ""
+  echo "  ── $label ──"
+  echo "  Users: $users"
+
+  cat <<EOF
+
+Subject: Please use the dedicated Triton login node for AI agents
+
+Hi,
+
+We detected $label running under your account on the Triton login node triton.aalto.fi.
+
+We have a separate login node for running coding agents at code.triton.aalto.fi. Could you move your workflow to the dedicated node?
+
+Thanks!
+Enrico
+
+EOF
+done
