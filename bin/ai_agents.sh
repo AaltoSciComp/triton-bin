@@ -127,6 +127,7 @@ while IFS= read -r line; do
   case "${exe##*/}" in
     claude)
       [[ $opts =~ (^|[[:space:]])--dangerously-skip-permissions([[:space:]]|$) ||
+         $opts =~ (^|[[:space:]])--allow-dangerously-skip-permissions([[:space:]]|$) ||
          $opts =~ (^|[[:space:]])--permission-mode(=|[[:space:]]+)bypassPermissions([[:space:]]|$) ]] && agent="Claude Code" ;;
     codex)
       [[ $opts =~ (^|[[:space:]])(--yolo|--dangerously-bypass-approvals-and-sandbox)([[:space:]]|$) ]] && agent="Codex"
