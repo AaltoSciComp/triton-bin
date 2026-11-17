@@ -1,3 +1,5 @@
+#!/bin/bash
+
 echo "number of nodes"
 sinfo -o %N -N |sort|uniq | wc -l
 
