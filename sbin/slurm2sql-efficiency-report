@@ -13,6 +13,8 @@ parser.add_argument('--md', action='store_true', help='Markdown')
 parser.add_argument('--start', '-S', default='now-2day', help='Start time, default=%(default)s')
 parser.add_argument('--count', '-c', default=5, type=int, help='Number of rows for each measure, default=%(default)s')
 parser.add_argument('--native-order', action='store_true', help="Don't use a heuristic to sort by most important to check")
+parser.add_argument('--reverse', action='store_true', help="Sort with least waste first")
+parser.add_argument('--order-usage', action='store_true', help="Order by usage, not waste.")
 parser.add_argument('--db', help="Read from this DB.  Don't import new data.  There is no chance to apply any sacct filters, so you should have created the database with the right filters already.")
 args = parser.parse_args()
 
@@ -29,6 +31,10 @@ for name, order in [
         ('mem_GiB_day_waste', 'sum((1-MemEff)*Elapsed*MemReq*(1-min(max(CPUEff, coalesce(GPUeff,0)),1)))'),
         #('gpu_day_waste',     'sum((1-GPUeff)*Elapsed*NGPUs* (1-min(max(CPUeff, MemEff),1)))')]:
         ('gpu_day_waste',     'gpu_day_waste')]:
+    if args.order_usage:
+        name = name[:-6]
+        args.order_native = True
+
     print(f'### {name}')
     cur = db.execute(f"""
     SELECT
@@ -53,7 +59,7 @@ for name, order in [
     FROM eff
     WHERE Start IS NOT NULL and End IS NOT NULL
     GROUP BY user
-    ORDER BY {name if args.native_order else order} DESC NULLS LAST
+    ORDER BY {name if args.native_order else order} {'ASC' if args.reverse else 'DESC'} NULLS LAST
     LIMIT {args.count}
     """)
     headers = [ x[0] for x in cur.description ]
